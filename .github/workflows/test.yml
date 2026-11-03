@@ -33,6 +33,7 @@ jobs:
           node dev/test-data.js
           node dev/test-vetro.js
           node dev/test-vetro-launch.js
+          node dev/test-vetro-permissions.js
           node dev/test-dock-preferences.js
           node dev/test-startup.js
       - name: Website and service API

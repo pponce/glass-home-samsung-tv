@@ -919,7 +919,7 @@ function createService(opts) {
       if (top === 'health' && segs.length === 1) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
-        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, vetroLaunch: vetroLaunch.version, dockPreferences: 1 });
+        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, vetroLaunch: vetroLaunch.version, vetroPermissions: 1, dockPreferences: 1 });
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {

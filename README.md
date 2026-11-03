@@ -279,3 +279,11 @@ iPhone camera, and wrote and tested the app. It also watched one cat video.
 [MIT](LICENSE). Photo and data credits: [CREDITS.md](CREDITS.md). Not affiliated
 with Samsung, Apple or any app shown.
 
+
+## Vetro app permissions
+
+With Vetro's optional permission API, choose **+ → Connect to Vetro**. In Vetro's paired dashboard, open **App permissions**, enable app access, refresh requests and approve Glass Home's **List TV apps** and **Open TV apps** permissions. Return to Glass Home and choose **Refresh apps**. Approvals bind the installed app and its signer; after a Glass Home update, request approval again.
+
+Glass Home requests no task, system, brightness, remote-control or power permissions. The widget communicates through Tizen MessagePort under its own app identity; it never stores Vetro's owner credential. An owner may approve a subset. Missing launch permission leaves normal native app launching available, without Vetro return coordination.
+
+Older Vetro without the permission port retains the existing app-list reader and coordinated launch path. A permission refusal or lost reply from a newer Vetro does not downgrade to that older API. An uncertain launch outcome is reported without sending a second launch. Vetro remains optional; normal native launching is retained when it is unavailable.

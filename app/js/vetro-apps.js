@@ -78,6 +78,7 @@
   };
   V.failureText = function () {
     var e = V.error || {};
+    if (['disabled','permission_denied','identity_changed'].indexOf(e.code) >= 0) return e.message;
     if (e.code === 'empty') return 'Vetro has no launchable apps';
     if (e.code === 'timeout') return 'Vetro did not respond';
     if (e.code === 'http') return 'Vetro returned HTTP ' + e.status;

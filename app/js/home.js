@@ -615,6 +615,7 @@
     panelButtons.push({ id: 'close', label: 'Done' });
     if (V.entries.length) panelButtons.push({ id: 'vetro', label: 'Choose apps', row: 1 });
     panelButtons.push({ id: 'vetro-refresh', label: V.loading ? 'Checking apps…' : 'Refresh apps', row: 1 });
+    if (GH.vetroPermissions) panelButtons.push({ id: 'vetro-connect', label: GH.vetroPermissions.busy ? 'Requesting access…' : 'Connect to Vetro', row: 1 });
     panelButtons.push({ id: 'ytmode', label: 'YouTube links: ' + YT_MODE_NAMES[ytMode], small: true, row: 2 });
     panelButtons.forEach(function (b, i) { if (b.id === priorButton) panelFocus = i; });
     panelFocus = clamp(panelFocus, 0, panelButtons.length - 1);
@@ -649,6 +650,7 @@
     var details = div('diag-details');
     details.appendChild(div('diag-text', line));
     if (V.error) details.appendChild(div('diag-text vetro-error', V.diagnostic()));
+    if (GH.vetroPermissions) details.appendChild(div('diag-text', GH.vetroPermissions.description()));
     diag.appendChild(details);
   }
 
@@ -685,6 +687,13 @@
     if (b.id === 'close') { closePanel(); return; }
     if (b.id === 'vetro') { openVetroPicker(); return; }
     if (b.id === 'vetro-refresh') { if (!V.loading) refreshVetro(true, true); return; }
+    if (b.id === 'vetro-connect') {
+      if (V.loading || GH.vetroPermissions.busy) { toast('Wait for the current app check to finish.'); return; }
+      GH.vetroPermissions.connect().then(function (message) {
+        toast(message); refreshVetro(true, false);
+      }, function (e) { toast(e.message); }).then(function () { if (mode === 'panel') renderPanel(); });
+      renderPanel(); return;
+    }
     if (b.id === 'unhide') {
       if (!canSaveAppChoices()) return;
       V.save(V.selected, []).then(function () {
@@ -768,7 +777,7 @@
 
   function renderVetroPicker() {
     $('vetro-note').textContent = V.available
-      ? 'Choose apps from Vetro’s Samsung Home list. Your choices are saved on this TV.'
+      ? 'Choose from the TV apps available through Vetro. Your choices are saved on this TV.'
       : 'Vetro is unavailable. You can still use your saved app list.';
     pickerRows = [
       { id: 'all', label: 'Select all' },
