@@ -26,6 +26,7 @@ var storeMod = require('./store.js');
 var yt = require('../js/ytparse.js');
 var vetro = require('./vetro.js');
 var vetroLaunch = require('./vetro-launch.js');
+var vetroReplies = require('./vetro-replies.js');
 var dockPrefs = require('./dock-prefs.js');
 
 var VERSION = '1.0.0';
@@ -129,6 +130,7 @@ function createService(opts) {
     note('Vetro apps: ' + err.code + (err.detail ? ' (' + err.detail + ')' : '') + ' - ' + err.message);
   });
   var launchVetroApp = vetroLaunch.createLauncher(readVetroApps);
+  var readVetroReply = vetroReplies.createReader();
 
   var hosts = opts.hosts || ['0.0.0.0'];
   var localKey = readLocalKey(appDir);
@@ -870,6 +872,15 @@ function createService(opts) {
         }).catch(function (e) { bodyError(res, e); });
       }
     }
+    if (s[1] === 'vetro' && s[2] === 'replies' && s.length === 4) {
+      if (m !== 'GET') return refuseBody(req, res, 405, { error: 'method' });
+      if (!/^[a-f0-9]{64}$/.test(s[3]) || Object.keys(ctx.query).some(function (k) { return k !== 'k'; }) ||
+          req.headers['transfer-encoding'] || (req.headers['content-length'] && req.headers['content-length'] !== '0'))
+        return refuseBody(req, res, 400, { error: 'bad-reply-request' });
+      return readVetroReply(s[3]).then(function (result) {
+        sendJSON(res, 200, result);
+      }, function () { sendJSON(res, 502, { error: 'vetro-reply-unavailable' }); });
+    }
     if (s[1] === 'vetro' && s[2] === 'apps' && s.length === 3 && m === 'GET') {
       return readVetroApps(ctx.query.refresh === '1').then(function (result) { sendJSON(res, 200, result); });
     }
@@ -919,7 +930,7 @@ function createService(opts) {
       if (top === 'health' && segs.length === 1) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
-        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, vetroLaunch: vetroLaunch.version, vetroPermissions: 1, dockPreferences: 1 });
+        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, vetroLaunch: vetroLaunch.version, vetroPermissions: 2, dockPreferences: 1 });
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {

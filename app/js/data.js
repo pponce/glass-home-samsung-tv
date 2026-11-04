@@ -86,6 +86,17 @@
     });
   };
 
+  // Only the random reply ID crosses this local channel. The signing key stays
+  // in the widget and travels to Vetro solely in the native MessagePort request.
+  D.vetroReply = function (id) {
+    if (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id)) return Promise.reject(new Error('Invalid reply ID'));
+    return request('GET', withKey('/local/vetro/replies/' + id), undefined, 3500).then(function (r) {
+      if (r.status !== 200 || !r.data || [200,202,404].indexOf(r.data.status) < 0)
+        throw new Error('Vetro reply unavailable');
+      return r.data;
+    });
+  };
+
   D.vetroLaunch = function (appId) {
     return request('POST', withKey('/local/vetro/launch'), { appId: appId }, 35000).then(function (r) {
       if (r.status === 200 && r.data && r.data.appId === appId) {

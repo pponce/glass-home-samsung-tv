@@ -7,7 +7,8 @@
   var P = GH.vetroPermissions = { busy: false, state: 'unknown', scopes: [] };
   function call(method, params) {
     var next = queue.then(function () {
-      if (!client) client = new window.VetroAppAccess({ tizen: window.tizen });
+      if (!client) client = new window.VetroAppAccess({ tizen: window.tizen,
+        httpReplies: true, crypto: window.crypto, pollReply: D.vetroReply });
       return client.call(method, params);
     });
     queue = next.catch(function () {});

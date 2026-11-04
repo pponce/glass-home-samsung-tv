@@ -59,3 +59,7 @@ Samsung, Tizen, Smart Hub, Apple, Apple TV, iPhone, YouTube, Netflix, Prime Vide
 belong to their owners. This project is not affiliated with or endorsed by any of them,
 and draws no third-party logos: apps in the dock show the icon the TV provides, or a
 plain tile with the app's name.
+# Cryptography
+
+The Vetro app-access client includes [js-sha256](https://github.com/emn178/js-sha256) v0.11.1 (commit `7912494a5ae277660131557401b91f11f47c96d2`), Copyright Chen, Yi-Cyuan, under the MIT license. Its license is included at `app/js/vendor/sha256.LICENSE.txt`.
+
