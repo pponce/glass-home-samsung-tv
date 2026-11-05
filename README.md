@@ -100,32 +100,38 @@ start time). New photos appear next on the TV. The phone stays signed in for
 30 days.
 
 **Apps from Vetro.** Glass Home checks for [Vetro](https://github.com/andrearicci93/vetro)
-on the same TV whenever it opens or returns to the foreground. When a Launcher
-app list is available, its apps appear automatically. Under **+**, **Choose
-apps** and **Refresh apps** sit below New password / Done. Choose individual
-apps with OK and select **Save**; Back or Cancel discards edits. **Select all**
-also includes new arrivals on later refreshes. A custom selection is preserved.
-Glass Home confirms a save after its service writes and verifies the selection
-and hidden-app settings in app storage. These choices are restored when Glass
-Home starts. If saving fails, the picker stays open so you can retry.
-The dock waits briefly for saved choices before displaying apps at startup.
-If the service is unavailable, cached apps remain usable.
-HDMI and Live TV inputs, photos and shortcuts keep their own settings.
+on the same TV whenever it opens or returns to the foreground. With approved
+app access and Samsung Apps catalog support, **+ → Choose apps** shows installed
+apps from Samsung Apps, including apps not pinned to the Samsung Home row.
+Home-row apps are selected initially and keep their Samsung order; other apps
+are unchecked. This is an installed-app list, not the store's recommendations.
 
-The list follows the apps Vetro identifies from Samsung Home. Settings, Home,
-input controls, Live TV and Glass Home itself are omitted; Samsung TV Plus is
-opened through its app. **Refresh apps** immediately re-reads Vetro's published
-list, bypassing Glass Home's 30-second read cache. Vetro itself may keep a cached
-list: this button does not rebuild it or restart Vetro's launcher. After changes
-to Samsung Home, Vetro must publish the updated list before Glass Home can see
-them. If Vetro stops or the list cannot be read, saved apps and selections remain
-usable. Without a saved list, Glass Home uses its configured apps. Discovery
-requires Glass Home's photo service; it also works with Vetro's launcher disabled.
+Choose apps with OK and select **Save**; Back or Cancel discards edits.
+**Select all** saves all currently listed apps. **Clear selection** leaves no
+apps selected. **Use Samsung Home selection** restores the Home-row default,
+which follows the Home row when refreshed. Explicit selections and hidden-app
+choices survive refreshes and restarts. Glass Home confirms a save after its
+service writes and verifies both settings. If saving fails, the picker stays
+open so you can retry. HDMI and Live TV inputs, photos and shortcuts keep their
+own settings.
 
-Glass Home's service reads Vetro's `/dock` endpoint on port 8099. It tries
-localhost first; if the TV denies that connection, it automatically tries the
-TV's own private IPv4 addresses. No IP address setting is needed. All attempts
-share a 25-second deadline. The integration only reads the published app list.
+**Refresh apps** reads the complete paginated catalog and refreshes its Samsung
+metadata. Settings, Home controls, Live TV and Glass Home itself are omitted;
+Samsung TV Plus opens through its app. Registry components without a Samsung
+Apps entry are excluded. Discovery requires the photo service and works with
+Vetro's launcher disabled. If a refresh fails, the last complete saved catalog
+and your choices remain usable. Without a saved catalog, configured apps serve
+as a fallback. A successfully read empty catalog stays empty.
+
+The permission integration uses `apps.catalog` under `apps.read`. A Vetro
+permission build without that method needs an update. Older Vetro without the
+permission port uses its published `/dock` list on port 8099, which contains
+only Home-row apps. That reader tries localhost, then the TV's own private IPv4
+addresses if localhost is denied, within one 25-second deadline. It caches reads
+for 30 seconds; Refresh bypasses that cache, although the older Vetro may retain
+its own published list. A permission denial or failed scoped read never falls
+back to the older endpoint.
+
 When Vetro's app list is available, ordinary app tiles ask Vetro to open the
 selected app through its existing app-launch API. This works with upstream
 Vetro and does not require its launcher to be enabled. If Vetro is unavailable

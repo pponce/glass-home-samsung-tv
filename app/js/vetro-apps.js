@@ -3,16 +3,22 @@
   'use strict';
   var GH = window.GH, cfg = GH.config, ls = GH.ls;
   var saved = ls.get('gh.vetro.v1') || {}, savedHidden = ls.get('gh.hidden');
+  function catalogSource(value) { return value === 'samsung-apps' || value === 'samsung-home'; }
   function valid(list) {
     var seen = Object.create(null);
-    return (Array.isArray(list) ? list : []).filter(function (e) {
-      if (!e || typeof e.appId !== 'string' || !/^[A-Za-z0-9_.-]{1,120}$/.test(e.appId) || typeof e.label !== 'string' || seen[e.appId]) return false;
+    if (!Array.isArray(list) || list.length > 2000) throw new Error('Invalid app catalog');
+    return list.map(function (e) {
+      if (!e || typeof e.appId !== 'string' || !/^[A-Za-z0-9_.-]{1,120}$/.test(e.appId) || typeof e.label !== 'string' || !e.label.trim() || seen[e.appId] ||
+          !(e.homeOrder === null || Number.isInteger(e.homeOrder) && e.homeOrder >= 0 && e.homeOrder < 300)) throw new Error('Invalid app entry');
       seen[e.appId] = true;
-      return true;
-    }).slice(0, 100);
+      return { appId: e.appId, label: e.label.slice(0,120), homeOrder: e.homeOrder };
+    });
   }
+  var cached = [];
+  try { if (catalogSource(saved.source)) cached = valid(saved.entries); } catch (e) { saved.source = null; }
   var V = {
-    entries: valid(saved.entries),
+    entries: cached,
+    source: catalogSource(saved.source) ? saved.source : null,
     selected: Array.isArray(saved.selected) ? saved.selected.filter(function (s) { return typeof s === 'string'; }) : null,
     hidden: Array.isArray(savedHidden) ? savedHidden.slice() : [],
     preferencesReady: false,
@@ -24,7 +30,7 @@
   };
   var pending = null;
   var restoring = null;
-  function persist() { ls.set('gh.vetro.v1', { entries: V.entries, selected: V.selected }); }
+  function persist() { ls.set('gh.vetro.v1', { entries: V.entries, selected: V.selected, source: V.source }); }
   function applyPreferences(prefs) {
     if (!prefs || !(prefs.selected === null || Array.isArray(prefs.selected)) || !Array.isArray(prefs.hidden)) throw new Error('invalid preferences');
     V.selected = prefs.selected === null ? null : prefs.selected.slice();
@@ -59,15 +65,16 @@
     pending = V.loadPreferences().catch(function () { /* use cached choices until retry */ }).then(function () {
       return GH.data.vetroApps(refresh);
     }).then(function (result) {
-      var entries = valid(result && result.apps);
-      V.available = !!(result && result.available && entries.length);
+      V.available = !!(result && result.available);
       V.error = V.available ? null : result && result.error || null;
       if (V.available) {
-        V.entries = entries;
-        // null means all apps, including new arrivals; explicit subsets persist.
+        if (!catalogSource(result.source)) throw new Error('Invalid catalog source');
+        V.entries = valid(result.apps);
+        V.source = result.source;
+        // null follows Samsung Home; explicit selections persist across refreshes.
         persist();
       }
-    }, function (err) {
+    }).catch(function (err) {
       V.available = false;
       V.error = err && err.vetro || { code: 'service', message: 'Glass Home could not retrieve its app list.' };
     }).then(function () {
@@ -78,7 +85,7 @@
   };
   V.failureText = function () {
     var e = V.error || {};
-    if (['disabled','permission_denied','identity_changed'].indexOf(e.code) >= 0) return e.message;
+    if (['disabled','permission_denied','identity_changed','update_required'].indexOf(e.code) >= 0) return e.message;
     if (e.code === 'empty') return 'Vetro has no launchable apps';
     if (e.code === 'timeout') return 'Vetro did not respond';
     if (e.code === 'http') return 'Vetro returned HTTP ' + e.status;
@@ -92,7 +99,11 @@
     if (!e) return '';
     return ['Vetro', e.code, e.detail, e.message].filter(function (s) { return !!s; }).join(' · ').slice(0, 360);
   };
-  V.active = function () { return V.entries.length > 0; };
+  V.active = function () { return catalogSource(V.source); };
+  V.defaultIds = function () {
+    return V.entries.filter(function (e) { return e.homeOrder !== null; }).map(function (e) { return e.appId; });
+  };
+  V.selection = function () { return V.selected === null ? V.defaultIds() : V.selected.slice(); };
   V.definitions = function (selection) {
     var selected = arguments.length ? selection : V.selected;
     if (!V.active()) {
@@ -101,7 +112,8 @@
         return d.ids.some(function (id) { return selected.indexOf(id) >= 0; });
       });
     }
-    return V.entries.filter(function (e) { return selected === null || selected.indexOf(e.appId) >= 0; }).map(function (e) {
+    if (selected === null) selected = V.defaultIds();
+    return V.entries.filter(function (e) { return selected.indexOf(e.appId) >= 0; }).map(function (e) {
       var known = cfg.apps.filter(function (d) { return d.ids.indexOf(e.appId) >= 0; })[0];
       var def = { key: known ? known.key : 'vetro:' + e.appId, label: e.label, ids: [e.appId], names: [], fromVetro: true };
       if (known) {

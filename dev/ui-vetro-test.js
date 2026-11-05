@@ -58,7 +58,7 @@ function check(value, message) { assert(value, message); checks++; }
     check(await tv.eval("document.querySelector('#vetro-picker').classList.contains('open')"), 'remote opens picker');
     check(await tv.eval("![...document.querySelectorAll('.vetro-label')].some(e => e.textContent === 'Use Vetro apps')"), 'picker has no enable toggle');
     check(await tv.eval("[...document.querySelectorAll('.vetro-label')].some(e => e.textContent === 'Spotify')"), 'unknown configured apps can be selected');
-    check(await tv.eval("![...document.querySelectorAll('.vetro-label')].some(e => /Samsung Home|Glass Home/.test(e.textContent))"), 'controls and self omitted');
+    check(await tv.eval("![...document.querySelectorAll('.vetro-label')].some(e => ['Samsung Home','Glass Home'].includes(e.textContent))"), 'controls and self omitted');
     fs.mkdirSync(path.join(ROOT, 'preview'), { recursive: true });
     await tv.shot(path.join(ROOT, 'preview/tv-vetro-picker.png'));
     await choose('.vetro-option', 'Select all', K.DOWN);
@@ -139,6 +139,26 @@ function check(value, message) { assert(value, message); checks++; }
     await choose('#panel-buttons .pbtn', 'Show hidden apps (1)', K.RIGHT);
     await tv.goto(base + '&panel=1', 1500);
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'unhide persists across restart');
+
+    // Exercise the same chooser with Samsung Apps metadata, including an
+    // installed app that is absent from the Home row.
+    await tv.eval(`GH.data.vetroApps = function () { return Promise.resolve({available:true,source:'samsung-apps',apps:[
+      {appId:'org.tizen.netflix-app',label:'Netflix',homeOrder:0},
+      {appId:'com.samsung.tv.tvPlusDeeplinker',label:'Samsung TV Plus',homeOrder:1},
+      {appId:'test.Spotify',label:'Spotify',homeOrder:null}
+    ]}); }; GH.vetro.save(null,[]);`);
+    await tv.key(K.DOWN);
+    await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
+    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    check(await tv.eval("[...document.querySelectorAll('.vetro-option[role=checkbox]')].filter(e=>e.getAttribute('aria-checked')==='true').length === 2"),'only Home apps checked by default');
+    check(await tv.eval("[...document.querySelectorAll('.vetro-option[role=checkbox]')].find(e=>e.textContent==='Spotify').getAttribute('aria-checked') === 'false'"),'unpinned app is available and unchecked');
+    await choose('.vetro-option', 'Select all', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval('GH.vetro.selected.length === 3'),'Select all saves explicit IDs');
+    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    await choose('.vetro-option', 'Use Samsung Home selection', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval('GH.vetro.selected === null && GH.vetro.definitions().length === 2'),'Home reset persists defaults');
     console.log(checks + ' Vetro browser checks passed');
   } finally {
     if (browser) await browser.close();

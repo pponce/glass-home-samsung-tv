@@ -28,9 +28,9 @@ const catalog = { entries: [
   { appId: 'valid.Id', label: '' }
 ] };
 const expected = [
-  { appId: 'org.tizen.netflix-app', label: 'Netflix' },
-  { appId: 'test.Spotify', label: 'Spotify' },
-  { appId: 'com.samsung.tv.tvPlusDeeplinker', label: 'Samsung TV Plus' }
+  { appId: 'org.tizen.netflix-app', label: 'Netflix', homeOrder: 0 },
+  { appId: 'test.Spotify', label: 'Spotify', homeOrder: 1 },
+  { appId: 'com.samsung.tv.tvPlusDeeplinker', label: 'Samsung TV Plus', homeOrder: 2 }
 ];
 function client(stored, config, response) {
   const GH = {
@@ -91,7 +91,7 @@ function simulatedReader(options) {
   equal(vetro.appsFrom(catalog, 'GlassHome1'), expected, 'filter controls, inputs, duplicates, self and invalid IDs');
   assert.throws(() => vetro.appsFrom({}, 'GlassHome1')); checks++;
   equal(vetro.appsFrom({ entries: [] }, 'GlassHome1'), [], 'empty catalog is not an app source');
-  let reply = { available: true, apps: expected };
+  let reply = { available: true, source: 'samsung-home', apps: expected };
   let store = {};
   let V = client(store, {}, () => Promise.resolve(reply));
   equal(V.definitions().map(d => d.key), ['netflix'], 'configured list is used before discovery');
@@ -110,7 +110,7 @@ function simulatedReader(options) {
   equal(V.definitions().map(d => d.key), ['netflix'], 'no list falls back to configured apps');
   await V.refresh();
   equal(V.definitions().length, 3, 'first import selects all');
-  reply = { available: true, apps: expected.concat({ appId: 'test.New', label: 'New' }) };
+  reply = { available: true, source: 'samsung-home', apps: expected.concat({ appId: 'test.New', label: 'New', homeOrder: 3 }) };
   await V.refresh();
   equal(V.definitions().length, 4, 'all-apps selection follows new arrivals');
   await V.save(['test.Spotify']);
@@ -124,11 +124,34 @@ function simulatedReader(options) {
   equal(V.failureText(), 'Could not connect to Vetro', 'a connection error is not described as an empty list');
   assert.match(V.diagnostic(), /EACCES/); checks++;
   equal(V.definitions().map(d => d.label), ['Spotify'], 'diagnostics preserve the selected apps');
-  reply = { available: true, apps: expected };
+  reply = { available: true, source: 'samsung-home', apps: expected };
   await V.refresh(true);
   equal([V.error, V.diagnostic()], [null, ''], 'a successful refresh clears the error');
   V = client({ 'gh.vetro.v1': { entries: 'bad', selected: ['test.Bad'] } }, {}, () => Promise.resolve(reply));
   equal(V.definitions().map(d => d.key), ['netflix'], 'malformed stored list falls back');
+
+  // Samsung Apps contains unpinned apps; only Home-row apps start selected.
+  const full=expected.map(e=>({...e}));full[1].homeOrder=null;
+  reply={available:true,source:'samsung-apps',apps:full};
+  store={};V=client(store,{},()=>Promise.resolve(reply));await V.refresh();
+  equal(V.selection(),[full[0].appId,full[2].appId],'default selection is Home membership only');
+  equal(V.definitions().map(d=>d.label),['Netflix','Samsung TV Plus'],'unpinned Spotify stays in chooser only');
+  await V.save([full[1].appId]);await V.refresh(true);
+  equal(V.definitions().map(d=>d.label),['Spotify'],'unpinned app can be explicitly selected');
+  await V.save(null);equal(V.selection(),V.defaultIds(),'reset restores Home defaults');
+  await V.save(full.map(e=>e.appId));
+  reply={...reply,apps:full.concat({appId:'unselected.New',label:'New',homeOrder:null})};
+  await V.refresh();equal(V.definitions().length,3,'explicit Select all does not add future apps');
+  reply={available:true,source:'samsung-apps',apps:[]};await V.refresh();
+  equal([V.active(),V.available,V.definitions()],[true,true,[]],'valid empty catalog never restores configured apps');
+  reply={available:true,source:'samsung-apps',apps:full};await V.refresh();
+  const previous=V.entries;
+  reply={available:true,source:'samsung-apps',apps:[{appId:'broken'}]};await V.refresh();
+  equal([V.available,V.entries===previous],[false,true],'malformed refresh retains the last complete catalog');
+  store={'gh.vetro.v1':{entries:expected,selected:[full[1].appId]}};
+  reply={available:true,source:'samsung-apps',apps:full};V=client(store,{},()=>Promise.resolve(reply));
+  equal(V.entries,[],'unmarked registry cache is not treated as Samsung Apps');await V.refresh();
+  equal(V.definitions().map(d=>d.label),['Spotify'],'cache migration preserves explicit choices');
 
   let response = JSON.stringify(catalog), status = 200, calls = [];
   const server = http.createServer((req, res) => {
@@ -140,7 +163,7 @@ function simulatedReader(options) {
   let svc;
   const temp = path.join(__dirname, 'tmp', 'vetro-test-' + process.pid);
   try {
-    equal(await vetro.readApps('GlassHome1'), { available: true, apps: expected, address: '127.0.0.1' }, 'read real local HTTP response');
+    equal(await vetro.readApps('GlassHome1'), { available: true, source: 'samsung-home', apps: expected, address: '127.0.0.1' }, 'read real local HTTP response');
     equal(calls[0], ['GET', '/dock', null], 'fixed read-only request without browser Origin');
     const reader = vetro.createReader('GlassHome1');
     const before = calls.length;
@@ -181,7 +204,7 @@ function simulatedReader(options) {
     equal((await fetch(endpoint)).status, 403, 'unauthenticated caller cannot read catalog');
     equal(calls.length, authBefore, 'unauthenticated request does not contact Vetro');
     const url = endpoint + '?k=' + encodeURIComponent(svc.localKey());
-    equal(await (await fetch(url)).json(), { available: true, apps: expected, address: '127.0.0.1' }, 'authenticated local channel returns catalog');
+    equal(await (await fetch(url)).json(), { available: true, source: 'samsung-home', apps: expected, address: '127.0.0.1' }, 'authenticated local channel returns catalog');
     const refreshBefore = calls.length;
     await fetch(url + '&refresh=1');
     equal(calls.length, refreshBefore + 1, 'refresh query causes another read from Vetro');
@@ -231,7 +254,7 @@ function simulatedReader(options) {
     const test = simulatedReader({ interfaces, responses: {
       '127.0.0.1': { error: code, elapsed: 1200 }, '192.168.84.19': {}
     } });
-    equal(await test.reader.readApps('GlassHome1'), { available: true, apps: expected, address: '192.168.84.19' }, code + ' uses the same TV LAN address');
+    equal(await test.reader.readApps('GlassHome1'), { available: true, source: 'samsung-home', apps: expected, address: '192.168.84.19' }, code + ' uses the same TV LAN address');
     equal(test.calls.map(c => [c.hostname, c.localAddress, c.port, c.path, c.method]), [
       ['127.0.0.1', '127.0.0.1', 8099, '/dock', 'GET'],
       ['192.168.84.19', '192.168.84.19', 8099, '/dock', 'GET']
@@ -316,7 +339,7 @@ function simulatedReader(options) {
         }
       }
     });
-    equal(await module.exports.readApps('GlassHome1'), { available: true, apps: expected, address: own.address }, 'real LAN fallback returns the catalog');
+    equal(await module.exports.readApps('GlassHome1'), { available: true, source: 'samsung-home', apps: expected, address: own.address }, 'real LAN fallback returns the catalog');
     equal(connection, [own.address, own.address, '/dock', null], 'both real socket ends are on this host, with no local key forwarded');
   } finally {
     await new Promise(resolve => lanServer.close(resolve));

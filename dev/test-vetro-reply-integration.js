@@ -41,10 +41,9 @@ function nativeRequest(data, local) {
   if (request.method === 'access.request') result = {state: approved ? 'approved' : 'pending', scopes: approved ? ['apps.read', 'apps.launch'] : []};
   else if (request.method === 'access.status') result = {state: approved ? 'approved' : 'revoked', scopes: approved ? ['apps.read', 'apps.launch'] : []};
   else if (!approved) error = {code: 'permission_denied', message: 'Permission required', submitted: false};
-  else if (request.method === 'apps.list') result = {apps: [
-    {appId: 'test.Netflix', name: 'Netflix', disabled: false},
-    {appId: 'test.Disabled', name: 'Disabled', disabled: true}
-  ], nextOffset: null};
+  else if (request.method === 'apps.catalog') result = {apps: [
+    {appId: 'test.Netflix', name: 'Netflix', disabled: false, homeOrder: 0}
+  ], nextOffset: null, total: 1, source: 'samsung-apps', revision: 'a'.repeat(64)};
   else if (request.method === 'apps.launch') {
     launches++;
     result = {ok: true, submitted: true, appId: request.params.appId};
@@ -167,7 +166,7 @@ function widget(port) {
   approved = true;
   const list = await w.GH.data.vetroApps(true);
   assert.equal(list.transport, 'permissions');
-  assert.deepEqual(JSON.parse(JSON.stringify(list.apps)), [{appId: 'test.Netflix', label: 'Netflix'}]);
+  assert.deepEqual(JSON.parse(JSON.stringify(list.apps)), [{appId: 'test.Netflix', label: 'Netflix', homeOrder: 0}]);
   assert.equal(await w.GH.data.vetroLaunch('test.Netflix'), true);
   assert.equal(launches, 1);
   assert.equal(w.legacy(), 0);

@@ -66,7 +66,7 @@
   var panelButtons = [];
   var panelFocus = 0;
   var panelRowFocus = {};
-  var pickerRows = [], pickerFocus = 0, pickerIds = [], pickerEntries = [];
+  var pickerRows = [], pickerFocus = 0, pickerIds = [], pickerEntries = [], pickerDefaultMode = false;
   var confirmNewPw = 0;
   var waitEnterRelease = false;
   var releaseTimer = null;
@@ -756,7 +756,8 @@
 
   function openVetroPicker() {
     if (!canSaveAppChoices()) return;
-    pickerIds = (V.selected || V.entries.map(function (e) { return e.appId; })).slice();
+    pickerIds = V.selection();
+    pickerDefaultMode = V.selected === null;
     pickerEntries = V.entries.slice();
     pickerFocus = 0;
     mode = 'vetro';
@@ -777,9 +778,10 @@
 
   function renderVetroPicker() {
     $('vetro-note').textContent = V.available
-      ? 'Choose from the TV apps available through Vetro. Your choices are saved on this TV.'
+      ? (V.source === 'samsung-apps' ? 'Installed Samsung Apps. Home-row apps are selected by default.' : 'Apps from the Samsung Home row.') + ' Your choices are saved on this TV.'
       : 'Vetro is unavailable. You can still use your saved app list.';
     pickerRows = [
+      { id: 'home', label: 'Use Samsung Home selection' },
       { id: 'all', label: 'Select all' },
       { id: 'none', label: 'Clear selection' }
     ];
@@ -821,8 +823,7 @@
     if (r.id === 'cancel') { closeVetroPicker(); return; }
     if (r.id === 'save') {
       if (!canSaveAppChoices()) return;
-      var allSelected = pickerEntries.every(function (e) { return pickerIds.indexOf(e.appId) >= 0; });
-      var selected = allSelected ? null : pickerIds;
+      var selected = pickerDefaultMode ? null : pickerIds;
       // Explicit selection unhides chosen apps; retain unrelated input choices.
       var keys = V.definitions(selected).map(function (d) { return d.key; });
       var nextHidden = V.hidden.filter(function (k) { return keys.indexOf(k) < 0; });
@@ -837,6 +838,8 @@
       renderVetroPicker();
       return;
     }
+    pickerDefaultMode = r.id === 'home';
+    if (r.id === 'home') pickerIds = V.defaultIds();
     if (r.id === 'all') pickerIds = pickerEntries.map(function (e) { return e.appId; });
     if (r.id === 'none') pickerIds = [];
     if (r.id === 'app') {

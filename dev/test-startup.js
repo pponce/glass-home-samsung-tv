@@ -8,7 +8,7 @@ const path = require('path');
 const vm = require('vm');
 const root = path.join(__dirname, '..');
 const netflix = 'org.tizen.netflix-app', plus = 'com.samsung.tv.tvPlusDeeplinker';
-const entries = [{ appId: netflix, label: 'Netflix' }, { appId: plus, label: 'Samsung TV Plus' }];
+const entries = [{ appId: netflix, label: 'Netflix', homeOrder: 0 }, { appId: plus, label: 'Samsung TV Plus', homeOrder: 1 }];
 let checks = 0;
 function equal(actual, expected, message) {
   assert.deepStrictEqual(JSON.parse(JSON.stringify(actual)), expected, message); checks++;
@@ -61,7 +61,7 @@ function boot(options = {}) {
     addEventListener: (event, fn) => { listeners[event] = fn; }
   };
   const stored = {
-    'gh.vetro.v1': { entries: options.noCatalog ? [] : entries, selected: null },
+    'gh.vetro.v1': { entries: options.noCatalog ? [] : entries, source: options.noCatalog ? null : 'samsung-home', selected: null },
     'gh.hidden': [], 'gh.focus': 'app:netflix',
     'gh.apps.v1': { apps: { netflix: { id: netflix }, tvplus: { id: plus } } }
   };
@@ -123,7 +123,7 @@ function boot(options = {}) {
   equal(t.history.every(render => !render.includes('Samsung TV Plus')), true, 'removed app never appears in any startup render');
   equal(t.get('dock-row').children.some(e => e.classList.contains('tile-input')), false, 'hidden input never appears');
   equal([t.GH.vetro.loading, t.get('dock').style.visibility], [true, ''], 'dock is usable before the slower Vetro read finishes');
-  t.catalog.resolve({ available: true, apps: entries }); await settle();
+  t.catalog.resolve({ available: true, source: 'samsung-home', apps: entries }); await settle();
   equal(t.labels(), ['Netflix'], 'catalog refresh retains restored selection');
   t.expire(6000); await settle();
   equal(t.labels(), ['Netflix'], 'cancelled startup fallback cannot replace restored choices');

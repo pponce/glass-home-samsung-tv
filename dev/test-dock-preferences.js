@@ -13,7 +13,7 @@ const port = 18495;
 const base = 'http://127.0.0.1:' + port;
 const netflix = 'org.tizen.netflix-app';
 const plus = 'com.samsung.tv.tvPlusDeeplinker';
-const entries = [{ appId: netflix, label: 'Netflix' }, { appId: plus, label: 'Samsung TV Plus' }];
+const entries = [{ appId: netflix, label: 'Netflix', homeOrder: 0 }, { appId: plus, label: 'Samsung TV Plus', homeOrder: 1 }];
 let checks = 0, child, key;
 function equal(actual, expected, message) {
   assert.deepStrictEqual(JSON.parse(JSON.stringify(actual)), expected, message);
@@ -72,7 +72,7 @@ function client(stored, blocked) {
   return window.GH;
 }
 function cached(selected, hidden = []) {
-  return { 'gh.vetro.v1': JSON.stringify({ entries, selected }), 'gh.hidden': JSON.stringify(hidden) };
+  return { 'gh.vetro.v1': JSON.stringify({ entries, selected, source: 'samsung-home' }), 'gh.hidden': JSON.stringify(hidden) };
 }
 
 (async () => {
@@ -108,7 +108,7 @@ function cached(selected, hidden = []) {
   gh = client(cached([netflix]), true);
   await gh.vetro.loadPreferences();
   equal([gh.vetro.selected, gh.vetro.hidden], [null, ['vetro:' + plus, 'in:2']], 'all-apps and hiding survive another forced stop');
-  gh.data.vetroApps = () => Promise.resolve({ available: true, apps: entries.concat({ appId: 'test.New', label: 'New' }) });
+  gh.data.vetroApps = () => Promise.resolve({ available: true, source: 'samsung-home', apps: entries.concat({ appId: 'test.New', label: 'New', homeOrder: 2 }) });
   await gh.vetro.refresh(true);
   equal(gh.vetro.definitions().length, 3, 'all-apps follows new arrivals');
   equal(gh.vetro.hidden, ['vetro:' + plus, 'in:2'], 'refresh preserves hidden apps and inputs');
@@ -119,10 +119,10 @@ function cached(selected, hidden = []) {
   await gh.vetro.loadPreferences();
   equal([gh.vetro.selected, gh.vetro.hidden, gh.vetro.definitions()], [[], [], []], 'empty selection and unhide survive restart');
 
-  for (const bad of [{}, { selected: 'all', hidden: [] }, { selected: ['bad;id'], hidden: [] }, { selected: null, hidden: ['bad/path'] }, { selected: Array(101).fill(netflix), hidden: [] }]) {
+  for (const bad of [{}, { selected: 'all', hidden: [] }, { selected: ['bad;id'], hidden: [] }, { selected: null, hidden: ['bad/path'] }, { selected: Array(2001).fill(netflix), hidden: [] }]) {
     equal((await call('PUT', { preferences: bad })).status, 400, 'malformed preferences rejected');
   }
-  equal((await call('PUT', { preferences: { selected: null, hidden: [] }, padding: 'x'.repeat(66000) })).status, 413, 'request is size limited');
+  equal((await call('PUT', { preferences: { selected: null, hidden: [] }, padding: 'x'.repeat(1024*1024+1) })).status, 413, 'request is size limited');
   equal((await call('GET')).data.preferences, { selected: [], hidden: [] }, 'invalid writes preserve saved choices');
 
   // A real disk failure must fail the API and the client, leaving the last
@@ -135,6 +135,11 @@ function cached(selected, hidden = []) {
   fs.rmdirSync(file + '.tmp');
   await gh.vetro.save(null, []);
   equal((await call('GET')).data.preferences, { selected: null, hidden: [] }, 'save succeeds on retry');
+
+  const largeSelection=Array.from({length:231},(_,i)=>'store.app'+i);
+  await gh.vetro.save(largeSelection,[]);
+  equal((await call('GET')).data.preferences.selected,largeSelection,'more than 100 choices persist without truncation');
+  await gh.vetro.save(null,[]);
 
   // The UI's save promise cannot resolve before the service acknowledges it.
   const save = gh.data.saveDockPreferences;

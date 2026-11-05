@@ -859,7 +859,7 @@ function createService(opts) {
       var prefsFile = path.join(store.dir, 'dock-preferences.json');
       if (m === 'GET') return sendJSON(res, 200, { preferences: dockPrefs.read(prefsFile) });
       if (m === 'PUT') {
-        return readJSONBody(req, 65536).then(function (body) {
+        return readJSONBody(req, 1024 * 1024).then(function (body) {
           var prefs;
           try { prefs = dockPrefs.validate(body.preferences); } catch (e) {
             return sendJSON(res, 400, { error: 'bad-preferences' });

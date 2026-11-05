@@ -35,7 +35,8 @@ function failure(code, cause, status) {
 function appsFrom(data, packageId) {
   if (!data || !Array.isArray(data.entries)) throw new Error('list-unavailable');
   var seen = Object.create(null);
-  return data.entries.slice(0, 100).map(function (e) {
+  if (data.entries.length > 2000) throw new Error('list-too-large');
+  return data.entries.map(function (e) {
     // Vetro opens TV Plus through its viewer. Glass Home launches the TV
     // Plus app directly, using the same ID as its configured TV Plus tile.
     if (e && e.slug === 'tvplus' && e.appId === 'org.tizen.tv-viewer') {
@@ -50,8 +51,8 @@ function appsFrom(data, packageId) {
     if (e.appId === packageId || e.appId.indexOf(packageId + '.') === 0 || seen[e.appId]) return false;
     seen[e.appId] = true;
     return true;
-  }).map(function (e) {
-    return { appId: e.appId, label: e.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80) };
+  }).map(function (e, i) {
+    return { appId: e.appId, label: e.label.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 80), homeOrder: i };
   });
 }
 
@@ -102,7 +103,7 @@ function requestApps(packageId, address, timeout) {
             var data = JSON.parse(text);
             stage = 'catalog';
             var apps = appsFrom(data, packageId);
-            var result = { available: apps.length > 0, apps: apps };
+            var result = { available: apps.length > 0, apps: apps, source: 'samsung-home' };
             if (!apps.length) result.error = failure('empty').vetro;
             finish(null, result);
           } catch (e) { finish(failure(stage, e)); }

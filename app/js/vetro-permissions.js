@@ -3,7 +3,8 @@
   'use strict';
   var GH = window.GH, D = GH.data, legacyApps = D.vetroApps, legacyLaunch = D.vetroLaunch;
   if (!window.tizen || !window.tizen.messageport || !window.VetroAppAccess || GH.config.preview) return;
-  var client = null, queue = Promise.resolve(), known = false;
+  var client = null, queue = Promise.resolve(), known = false, selfPackage = 'GlassHome1';
+  try { selfPackage = window.tizen.application.getCurrentApplication().appInfo.packageId || selfPackage; } catch (e) { /* package default */ }
   var P = GH.vetroPermissions = { busy: false, state: 'unknown', scopes: [] };
   function call(method, params) {
     var next = queue.then(function () {
@@ -27,6 +28,7 @@
       permission_denied: 'Choose Connect to Vetro, approve its requested access in Vetro, then Refresh apps.',
       unavailable: 'Verified Vetro access is unavailable. Open Vetro and check App permissions.',
       identity_changed: 'Glass Home changed. Request access again and approve its new identity in Vetro.',
+      update_required: 'Update Vetro to a version with Samsung Apps catalog support, then Refresh apps.',
       timeout: 'Vetro did not reply. Open Vetro and try Refresh apps.'
     };
     return { available: false, apps: [], error: { code: P.state, message: messages[P.state] || 'Open Vetro and check App permissions.' } };
@@ -53,20 +55,33 @@
     return call('access.status', {}).then(function (status) {
       remember(status);
       if (P.scopes.indexOf('apps.read') < 0) return error({ code: 'permission_denied' });
-      var entries = [], pages = 0;
+      var entries = [], seen = Object.create(null), total = null, revision = null;
       function page(offset) {
-        return call('apps.list', { offset: offset, limit: 20 }).then(function (result) {
-          if (!result || !Array.isArray(result.apps) || result.apps.length > 20) throw new Error('Invalid app page');
+        return call('apps.catalog', { offset: offset, limit: 20 }).then(function (result) {
+          if (!result || result.source !== 'samsung-apps' || !Array.isArray(result.apps) ||
+              !Number.isInteger(result.total) || result.total < 0 || result.total > 2000 ||
+              typeof result.revision !== 'string' || !/^[a-f0-9]{64}$/.test(result.revision) ||
+              result.apps.length !== Math.min(20, result.total - offset)) throw new Error('Invalid app page');
+          if (total === null) { total = result.total; revision = result.revision; }
+          if (result.total !== total || result.revision !== revision) throw new Error('App list changed. Refresh apps again.');
+          var next = offset + result.apps.length;
+          if (result.nextOffset !== (next < total ? next : null)) throw new Error('Invalid app cursor');
           result.apps.forEach(function (a) {
-            if (a && a.disabled === false && typeof a.appId === 'string' && /^[A-Za-z0-9_.-]{1,120}$/.test(a.appId) && typeof a.name === 'string')
-              entries.push({ appId: a.appId, label: a.name.slice(0,120) });
+            if (!a || a.disabled !== false || typeof a.appId !== 'string' || !/^[A-Za-z0-9_.-]{1,120}$/.test(a.appId) || seen[a.appId] ||
+                typeof a.name !== 'string' || !a.name.trim() || a.name.length > 120 ||
+                !(a.homeOrder === null || Number.isInteger(a.homeOrder) && a.homeOrder >= 0 && a.homeOrder < 300)) throw new Error('Invalid app entry');
+            seen[a.appId] = true;
+            if (a.appId !== selfPackage && a.appId.indexOf(selfPackage + '.') !== 0)
+              entries.push({ appId: a.appId, label: a.name, homeOrder: a.homeOrder });
           });
-          pages++;
-          if (result.nextOffset !== null && pages < 5) {
-            if (typeof result.nextOffset !== 'number' || result.nextOffset !== offset + 20) throw new Error('Invalid app cursor');
-            return page(result.nextOffset);
+          if (result.nextOffset !== null) {
+            // Stay below Vetro's per-app request rate, including the status read.
+            return new Promise(function (resolve) { setTimeout(resolve, 600); }).then(function () { return page(result.nextOffset); });
           }
-          return { available: true, apps: entries, transport: 'permissions', error: entries.length ? null : { code: 'empty', message: 'No eligible visible apps.' } };
+          return { available: true, apps: entries, source: 'samsung-apps', transport: 'permissions', error: null };
+        }, function (e) {
+          if (e && (e.code === 'invalid_request' || e.code === 'not_allowed')) e.code = 'update_required';
+          throw e;
         });
       }
       return page(0);

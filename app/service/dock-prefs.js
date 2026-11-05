@@ -17,8 +17,8 @@ function list(value, pattern, limit) {
 function validate(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('bad preferences');
   return {
-    selected: value.selected === null ? null : list(value.selected, /^[A-Za-z0-9_.-]{1,120}$/, 100),
-    hidden: list(value.hidden, /^[A-Za-z0-9_.:-]{1,160}$/, 200)
+    selected: value.selected === null ? null : list(value.selected, /^[A-Za-z0-9_.-]{1,120}$/, 2000),
+    hidden: list(value.hidden, /^[A-Za-z0-9_.:-]{1,160}$/, 2200)
   };
 }
 
