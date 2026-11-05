@@ -67,7 +67,7 @@ All in [`app/js/config.js`](app/js/config.js):
 
 | Setting | What it does |
 |---|---|
-| `apps` | The dock apps, in order. Each is found by its Tizen app ID, then by name. Remove what you don't have. `icon: false` shows a plain name tile. |
+| `apps` | The dock apps, in order. Each is found by its Tizen app ID, then by name. Remove what you don't have. An `icon` path supplies custom artwork. `icon: false` disables the native icon fallback; Samsung artwork from Vetro can still be shown. |
 | `inputs` | HDMI ports as dock tiles, after the apps: `{ hdmi: 4, label: 'Games console' }`, optionally with an `icon` path under `app/`. `{ tv: true, label: 'Live TV' }` is the antenna (the TV's tuner). Empty by default. |
 | `weather` | Off until you set `enabled: true`, `latitude` and `longitude` (`place` is the label shown under the forecast; `temperatureUnit: 'fahrenheit'` for °F). |
 | `locale` | Date and time format, e.g. `'en-GB'`; empty uses the TV's. |
@@ -291,5 +291,9 @@ with Samsung, Apple or any app shown.
 With Vetro's optional permission API, choose **+ → Connect to Vetro**. In Vetro's paired dashboard, open **App permissions**, enable app access, refresh requests and approve Glass Home's **List TV apps** and **Open TV apps** permissions. Return to Glass Home and choose **Refresh apps**. Approvals bind the installed app and its signer; after a Glass Home update, request approval again.
 
 Glass Home requests no task, system, brightness, remote-control or power permissions. The widget communicates through Tizen MessagePort under its own app identity; it never stores Vetro's owner credential. An owner may approve a subset. Missing launch permission leaves normal native app launching available, without Vetro return coordination.
+
+When Vetro advertises Samsung icon support, Glass Home reads the selected apps' artwork with the same **List TV apps** permission. Images load in the background, with name-only tiles filled first. Custom configured artwork takes priority; Samsung images are preferred over the native fallback. Unavailable images leave the app usable with its native icon or name.
+
+Each PNG is checked and assembled from authenticated chunks before display. App launches can run between image requests. A bounded browser cache makes artwork available on reopening for up to a day; **Refresh apps** also refreshes icons in the background. The saved image cache holds at most 64 images and 2 MiB of encoded image data. Hidden apps are not downloaded. Vetro versions without the icon capability retain the native-image/name fallback, and denied icon reads never switch to an owner or legacy endpoint.
 
 Older Vetro without the permission port retains the existing app-list reader and coordinated launch path. A permission refusal or lost reply from a newer Vetro does not downgrade to that older API. An uncertain launch outcome is reported without sending a second launch. Vetro remains optional; normal native launching is retained when it is unavailable.

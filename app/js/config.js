@@ -85,10 +85,11 @@
     // RN1MCdNq8t / evKhCgZelL IDs are Netflix and Prime Video on 2017-2018 TVs.
     // `storeId`: the Samsung store ID (`app_id` in vd_applist), used only with
     // smartHubLaunch.
-    // `icon`: a path under app/ to use your own image, or false for a plain
-    // glass tile with the app's name. Some apps report a poor icon to other
-    // apps (YouTube reports its Cobalt engine's pinwheel, Prime Video's may not
-    // load, Samsung TV Plus is a system app), so those default to name tiles.
+    // `icon`: a path under app/ for custom artwork, or false to disable the
+    // native image fallback. Vetro's Samsung artwork takes priority over the
+    // native fallback; custom images take priority over both. The apps below
+    // with unreliable native images use a name tile when Samsung artwork is
+    // unavailable (for example, YouTube's native icon can be its Cobalt engine).
     apps: [
       { key: 'youtube', label: 'YouTube', storeId: '111299001912', ids: ['9Ur5IzDKqV.TizenYouTube', 'com.samsung.tv.cobalt-yt'],
         names: ['^youtube$'], icon: false },

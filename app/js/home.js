@@ -181,7 +181,7 @@
       if (!a || (photoService && V.hidden.indexOf(k) >= 0)) return;
       list.push({ kind: 'app', key: 'app:' + k, appKey: k, label: defByKey[k].label, id: a.id,
         storeId: defByKey[k].storeId,
-        icon: defByKey[k].icon === false ? null : (defByKey[k].icon || P.iconUrl(a.iconPath)) });
+        icon: V.iconFor(defByKey[k], P.iconUrl(a.iconPath)) });
     });
     orderedInputs().forEach(function (inp) {
       var k = inputKey(inp);
@@ -1062,6 +1062,7 @@
       if (found.youtube) P.setYouTubeId(found.youtube.id);
       ls.set('gh.apps.v1', { at: Date.now(), apps: found });
       rebuildDock();
+      if (photoService) V.loadIcons(rebuildDock, function () { return !document.hidden; });
       if (!initialChoicesPending && initialFocus !== null) { setFocus(initialFocus); initialFocus = null; }
     });
   }

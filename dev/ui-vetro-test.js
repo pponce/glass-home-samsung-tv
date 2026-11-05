@@ -159,6 +159,19 @@ function check(value, message) { assert(value, message); checks++; }
     await choose('.vetro-option', 'Use Samsung Home selection', K.DOWN);
     await choose('.vetro-option', 'Save', K.DOWN);
     check(await tv.eval('GH.vetro.selected === null && GH.vetro.definitions().length === 2'),'Home reset persists defaults');
+    // The real dock replaces configured name-only tiles as artwork arrives.
+    const artwork='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEUlEQVR4nGP4z8DwH4QZYAwAR8oH+WdZbrcAAAAASUVORK5CYII=';
+    await tv.eval(`GH.data.vetroApps = function () { return Promise.resolve({available:true,source:'samsung-apps',iconSupport:true,apps:[
+      {appId:'org.tizen.primevideo',label:'Prime Video',homeOrder:0},
+      {appId:'com.samsung.tv.cobalt-yt',label:'YouTube',homeOrder:1},
+      {appId:'test.NoArtwork',label:'No artwork',homeOrder:2}
+    ]}); }; GH.data.vetroIcon = function(id) { return Promise.resolve(id === 'test.NoArtwork' ? null : ${JSON.stringify(artwork)}); };`);
+    await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
+    await sleep(500);
+    check(await tv.eval("[...document.querySelectorAll('#dock-row .tile-app img')].filter(i=>i.complete&&i.naturalWidth===2).length===2"),'YouTube and Prime display decoded Samsung artwork');
+    check(await tv.eval("[...document.querySelectorAll('#dock-row .name-fallback')].some(e=>e.textContent==='No artwork')"),'missing artwork retains a usable name tile');
+    check(await tv.eval("JSON.parse(localStorage.getItem('gh.vetro.icons.v1')).length===2"),'decoded artwork is cached for reopening');
+    await tv.shot(path.join(ROOT, 'preview/tv-vetro-icons.png'));
     console.log(checks + ' Vetro browser checks passed');
   } finally {
     if (browser) await browser.close();

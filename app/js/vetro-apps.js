@@ -26,10 +26,64 @@
     saving: false,
     available: false,
     loading: false,
+    iconSupport: false,
     error: null
   };
   var pending = null;
   var restoring = null;
+  var iconCache = Object.create(null), iconAttempts = Object.create(null), iconGeneration = 0, iconWork = null;
+  var ICON_CACHE = 'gh.vetro.icons.v1', ICON_BUDGET = 2 * 1024 * 1024;
+  function iconUrl(value) {
+    return typeof value === 'string' && value.length <= 174786 &&
+      /^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
+  }
+  var savedIcons = ls.get(ICON_CACHE), iconBytes = 0;
+  if (Array.isArray(savedIcons) && savedIcons.length <= 64) savedIcons.forEach(function (entry) {
+    if (entry && typeof entry.appId === 'string' && /^[A-Za-z0-9_.-]{1,120}$/.test(entry.appId) && iconUrl(entry.url) &&
+        typeof entry.at === 'number' && entry.at <= Date.now() && Date.now()-entry.at < 86400000 && iconBytes+entry.url.length <= ICON_BUDGET) {
+      iconCache[entry.appId] = { url: entry.url, at: entry.at }; iconBytes += entry.url.length;
+    }
+  });
+  function saveIcons() {
+    var size = 0, list = Object.keys(iconCache).map(function (id) { return { appId:id, url:iconCache[id].url, at:iconCache[id].at }; })
+      .sort(function (a,b) { return b.at-a.at; });
+    list = list.filter(function (entry,index) { size += entry.url.length; return index < 64 && size <= ICON_BUDGET; });
+    ls.set(ICON_CACHE, list);
+  }
+  V.iconFor = function (def, nativeIcon) {
+    if (typeof def.icon === 'string' && def.icon) return def.icon;
+    var cachedIcon = def.fromVetro && iconCache[def.ids[0]];
+    return cachedIcon ? cachedIcon.url : def.icon === false ? null : nativeIcon;
+  };
+  V.loadIcons = function (changed, visible) {
+    if (iconWork) return iconWork;
+    function current() { return V.available && V.iconSupport && !V.loading && (!visible || visible()); }
+    function next() {
+      if (!current() || typeof GH.data.vetroIcon !== 'function') return;
+      var selected = V.definitions(), active = selected.map(function (d) { return d.ids[0]; });
+      Object.keys(iconCache).forEach(function (id) { if (active.indexOf(id) < 0) delete iconCache[id]; });
+      var used = Object.keys(iconCache).reduce(function (sum,id) { return sum+iconCache[id].url.length; },0);
+      if (used > 8*1024*1024-174786) return;
+      var defs = selected.filter(function (d) { return !(typeof d.icon === 'string' && d.icon) && V.hidden.indexOf(d.key) < 0 && iconAttempts[d.ids[0]] !== iconGeneration; });
+      // Fill name-only tiles first; the remaining apps retain their native images meanwhile.
+      defs.sort(function (a,b) { return Number(b.icon === false)-Number(a.icon === false); });
+      if (!defs.length) return;
+      var id = defs[0].ids[0], generation = iconGeneration;
+      iconAttempts[id] = generation;
+      return GH.data.vetroIcon(id, current).then(function (url) {
+        if (url !== null && !iconUrl(url)) throw new Error('Invalid app icon');
+        if (url) iconCache[id] = { url:url, at:Date.now() }; else delete iconCache[id];
+        saveIcons();
+        if (changed) changed();
+      }).catch(function (error) {
+        if (error && error.code === 'cancelled') { delete iconAttempts[id]; return; }
+        // A failed permission or authenticated reply stops this background pass.
+        V.iconSupport = false;
+      }).then(next);
+    }
+    iconWork = Promise.resolve().then(next).then(function () { iconWork = null; }, function () { iconWork = null; });
+    return iconWork;
+  };
   function persist() { ls.set('gh.vetro.v1', { entries: V.entries, selected: V.selected, source: V.source }); }
   function applyPreferences(prefs) {
     if (!prefs || !(prefs.selected === null || Array.isArray(prefs.selected)) || !Array.isArray(prefs.hidden)) throw new Error('invalid preferences');
@@ -61,11 +115,13 @@
   };
   V.refresh = function (refresh) {
     if (pending) return pending;
+    if (refresh) iconGeneration++;
     V.loading = true;
     pending = V.loadPreferences().catch(function () { /* use cached choices until retry */ }).then(function () {
       return GH.data.vetroApps(refresh);
     }).then(function (result) {
       V.available = !!(result && result.available);
+      V.iconSupport = V.available && result.iconSupport === true;
       V.error = V.available ? null : result && result.error || null;
       if (V.available) {
         if (!catalogSource(result.source)) throw new Error('Invalid catalog source');
