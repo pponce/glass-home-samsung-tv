@@ -8,7 +8,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { launch, sleep } = require('./cdp.js');
 const ROOT = path.join(__dirname, '..');
-const K = { UP: 38, DOWN: 40, RIGHT: 39, ENTER: 13, BACK: 27 };
+const K = { LEFT: 37, UP: 38, DOWN: 40, RIGHT: 39, ENTER: 13, BACK: 27 };
 let checks = 0;
 function check(value, message) { assert(value, message); checks++; }
 
@@ -149,7 +149,7 @@ function check(value, message) { assert(value, message); checks++; }
     ]}); }; GH.vetro.save(null,[]);`);
     await tv.key(K.DOWN);
     await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
-    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.LEFT);
     check(await tv.eval("[...document.querySelectorAll('.vetro-option[role=checkbox]')].filter(e=>e.getAttribute('aria-checked')==='true').length === 2"),'only Home apps checked by default');
     check(await tv.eval("[...document.querySelectorAll('.vetro-option[role=checkbox]')].find(e=>e.textContent==='Spotify').getAttribute('aria-checked') === 'false'"),'unpinned app is available and unchecked');
     await choose('.vetro-option', 'Select all', K.DOWN);
