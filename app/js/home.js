@@ -924,10 +924,7 @@
     if (r.id === 'save') {
       if (!canSaveAppChoices()) return;
       var selected = pickerDefaultMode ? null : pickerIds;
-      // Explicit selection unhides chosen apps; retain unrelated input choices.
-      var keys = V.definitions(selected).map(function (d) { return d.key; });
-      var nextHidden = V.hidden.filter(function (k) { return keys.indexOf(k) < 0; });
-      V.save(selected, nextHidden).then(function () {
+      V.saveSelection(selected).then(function () {
         resolveApps();
         closeVetroPicker();
         toast('App selection saved');

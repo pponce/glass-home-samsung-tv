@@ -123,6 +123,11 @@ service writes and verifies both settings. If saving fails, the picker stays
 open so you can retry. HDMI and Live TV inputs, photos and shortcuts keep their
 own settings.
 
+Saving app selection keeps selected apps hidden if you previously hid them.
+Deselecting an app also removes its hidden entry, so selecting it again makes
+it visible. Hidden inputs retain their settings. Use **Show hidden apps** under
+**+** to reveal hidden items without changing your app selection.
+
 **Refresh apps** reads the complete paginated catalog and refreshes its Samsung
 metadata. Settings, Home controls, Live TV and Glass Home itself are omitted;
 Samsung TV Plus opens through its app. Registry components without a Samsung

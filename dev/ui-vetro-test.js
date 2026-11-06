@@ -136,6 +136,36 @@ function check(value, message) { assert(value, message); checks++; }
     await choose('#panel-app-buttons .pbtn', 'Refresh apps', K.RIGHT);
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 0"), 'refresh preserves hidden app');
     await tv.goto(base + '&panel=1', 1500);
+
+    // Editing selection must retain hiding for apps that remain selected.
+    await openPicker();
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval("GH.vetro.hidden.includes('netflix') && document.querySelectorAll('#dock-row .tile-app').length === 0"), 'saving unchanged selection leaves Netflix hidden');
+    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    await choose('.vetro-option', 'Spotify', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    await tv.goto(base + '&panel=1', 1500);
+    check(await tv.eval("GH.vetro.hidden.includes('netflix') && document.querySelectorAll('#dock-row .tile-app').length === 1"), 'adding Spotify preserves hidden Netflix after reopening');
+    await openPicker();
+    await choose('.vetro-option', 'Netflix', K.DOWN);
+    await tv.key(K.BACK);
+    check(await tv.eval("GH.vetro.hidden.includes('netflix') && GH.vetro.selection().includes('org.tizen.netflix-app')"), 'cancelled deselection preserves hidden and selected state');
+    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    await choose('.vetro-option', 'Netflix', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    await tv.goto(base + '&panel=1', 1500);
+    check(await tv.eval("GH.vetro.hidden.length === 0 && GH.vetro.selection().length === 1 && document.querySelectorAll('#dock-row .tile-app').length === 1"), 'deselecting hidden Netflix removes its hidden entry persistently');
+    await openPicker();
+    await choose('.vetro-option', 'Netflix', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    check(await tv.eval("GH.vetro.hidden.length === 0 && document.querySelectorAll('#dock-row .tile-app').length === 2"), 'reselecting Netflix makes it visible');
+    await choose('#panel-app-buttons .pbtn', 'Choose apps', K.RIGHT);
+    await choose('.vetro-option', 'Spotify', K.DOWN);
+    await choose('.vetro-option', 'Save', K.DOWN);
+    await tv.goto(base + '&focus=0', 1500);
+    await tv.key(K.ENTER, { hold: 850 });
+    await choose('.menu-item', 'Hide', K.DOWN);
+    await tv.goto(base + '&panel=1', 1500);
     await choose('#panel-buttons .pbtn', 'Show hidden apps (1)', K.RIGHT);
     await tv.goto(base + '&panel=1', 1500);
     check(await tv.eval("document.querySelectorAll('#dock-row .tile-app').length === 1"), 'unhide persists across restart');

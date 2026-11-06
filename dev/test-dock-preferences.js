@@ -174,6 +174,37 @@ function cached(selected, hidden = []) {
     assert.throws(() => module.exports.write(file, { selected: [plus], hidden: [] })); checks++;
   }
   equal(prefs.validate({ selected: [plus, plus], hidden: ['in:2', 'in:2'] }), { selected: [plus], hidden: ['in:2'] }, 'duplicate keys are normalized');
+
+  // Choosing apps changes membership, independently of the dock's Hide action.
+  const absent = 'test.Absent', added = 'test.Added', alias = 'netflix.alias';
+  gh.config.apps = [{ key: 'netflix', ids: [netflix, alias] }];
+  const hiddenChoices = ['netflix', 'vetro:' + plus, 'vetro:' + absent, 'in:2', 'in:tv', 'legacy-choice'];
+  await gh.vetro.save([netflix, plus, absent], hiddenChoices);
+  await gh.vetro.saveSelection([netflix, plus, absent]);
+  equal(gh.vetro.hidden, hiddenChoices, 'saving unchanged selection preserves all hidden choices');
+  await gh.vetro.saveSelection([netflix, plus, absent, added]);
+  equal(gh.vetro.hidden, hiddenChoices, 'adding an app does not unhide existing apps or inputs');
+  await gh.vetro.saveSelection([netflix, absent, added]);
+  const retained = ['netflix', 'vetro:' + absent, 'in:2', 'in:tv', 'legacy-choice'];
+  equal(gh.vetro.hidden, retained, 'only the deselected app is removed from hiding');
+  await kill(); await start();
+  gh = client(cached([plus]), false);
+  gh.config.apps = [{ key: 'netflix', ids: [netflix, alias] }];
+  await gh.vetro.loadPreferences();
+  equal([gh.vetro.selected, gh.vetro.hidden], [[netflix, absent, added], retained], 'selection and retained hiding survive service restart');
+  await gh.vetro.saveSelection([netflix, absent, added, plus]);
+  equal(gh.vetro.hidden, retained, 're-adding a removed app does not restore its old hidden flag');
+  await gh.vetro.saveSelection([alias, added, plus]);
+  equal(gh.vetro.hidden, ['netflix', 'in:2', 'in:tv', 'legacy-choice'], 'hidden aliases are retained while a deselected app absent from the catalog is removed');
+  await gh.vetro.save([netflix, plus, added], ['netflix', 'vetro:' + plus, 'vetro:' + added, 'in:2']);
+  await gh.vetro.saveSelection(null);
+  equal([gh.vetro.selected, gh.vetro.hidden], [null, ['netflix', 'vetro:' + plus, 'in:2']], 'Home defaults preserve hidden Home apps and remove deselected extras');
+  fs.mkdirSync(file + '.tmp');
+  await rejects(gh.vetro.saveSelection([]), 'failed selection save rejects');
+  equal([gh.vetro.selected, gh.vetro.hidden], [null, ['netflix', 'vetro:' + plus, 'in:2']], 'failed save does not prune hidden choices');
+  fs.rmdirSync(file + '.tmp');
+  await gh.vetro.saveSelection([]);
+  equal((await call('GET')).data.preferences, { selected: [], hidden: ['in:2'] }, 'Clear selection removes hidden apps and preserves hidden inputs');
   console.log(checks + ' dock preference checks passed');
 })().catch(err => { console.error(err); process.exitCode = 1; }).finally(async () => {
   await kill();

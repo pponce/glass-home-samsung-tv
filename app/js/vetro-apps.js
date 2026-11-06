@@ -160,6 +160,21 @@
     return V.entries.filter(function (e) { return e.homeOrder !== null; }).map(function (e) { return e.appId; });
   };
   V.selection = function () { return V.selected === null ? V.defaultIds() : V.selected.slice(); };
+  V.saveSelection = function (ids) {
+    var selected = ids === null ? V.defaultIds() : ids;
+    var removed = V.selection().filter(function (id) { return selected.indexOf(id) < 0; });
+    // Hiding is independent of selection. Only a deselected app loses its
+    // hidden flag; preserve inputs, unavailable selected apps and unknown keys.
+    var hidden = V.hidden.filter(function (key) {
+      if (key.indexOf('in:') === 0) return true;
+      var id = key.indexOf('vetro:') === 0 ? key.slice(6) : null;
+      var known = cfg.apps.filter(function (d) { return d.key === key || id && d.ids.indexOf(id) >= 0; })[0];
+      var appIds = known ? known.ids : id ? [id] : [];
+      return !appIds.some(function (appId) { return removed.indexOf(appId) >= 0; }) ||
+        appIds.some(function (appId) { return selected.indexOf(appId) >= 0; });
+    });
+    return V.save(ids, hidden);
+  };
   V.definitions = function (selection) {
     var selected = arguments.length ? selection : V.selected;
     if (!V.active()) {
