@@ -61,10 +61,11 @@ function boot(options = {}) {
     addEventListener: (event, fn) => { listeners[event] = fn; }
   };
   const stored = {
-    'gh.vetro.v1': { entries: options.noCatalog ? [] : entries, source: options.noCatalog ? null : 'samsung-home', selected: null },
+    'gh.vetro.v1': { entries: options.noCatalog ? [] : options.entries || entries, source: options.noCatalog ? null : 'samsung-home', selected: null },
     'gh.hidden': [], 'gh.focus': 'app:netflix',
     'gh.apps.v1': { apps: { netflix: { id: netflix }, tvplus: { id: plus } } }
   };
+  Object.assign(stored, options.stored || {});
   const window = { tizen: {}, innerWidth: 1920, innerHeight: 1080, addEventListener: () => {} };
   const context = vm.createContext({
     window, document, location: { search: options.focus === undefined ? '' : '?focus=' + options.focus },
@@ -77,9 +78,9 @@ function boot(options = {}) {
   run('config.js');
   const GH = window.GH;
   GH.config.photoService = !options.noService;
-  GH.config.inputs = [{ hdmi: 2, label: 'Games console' }];
+  GH.config.inputs = options.inputs || [{ hdmi: 2, label: 'Games console' }];
   GH.ls = { get: k => stored[k] || null, set: (k, v) => { stored[k] = JSON.parse(JSON.stringify(v)); } };
-  const state = { photos: [], shortcuts: [] };
+  const state = { photos: [], shortcuts: options.shortcuts || [] };
   GH.data = {
     cached: () => state, health: () => Promise.resolve(!options.offline),
     refresh: () => Promise.resolve({ state, changed: true, online: !options.offline }),
@@ -96,11 +97,13 @@ function boot(options = {}) {
   GH.Backdrop = function () { this.setPhotos = this.start = this.pause = this.resume = () => {}; };
   run('vetro-apps.js'); run('home.js');
   return {
-    GH, history, preferences, catalog, get, labels, options,
+    GH, history, preferences, catalog, get, labels, options, stored, state, document,
     reads: () => preferenceReads, launches: () => launches,
     poll: () => { [...intervals.values()].forEach(t => t.fn()); },
     expire: ms => { for (const [id, t] of [...timeouts]) if (t.ms === ms) { timeouts.delete(id); t.fn(); } },
     foreground: () => listeners.visibilitychange(),
+    down: (code, repeat = false) => listeners.keydown({ keyCode: code, repeat, preventDefault: () => {} }),
+    up: code => listeners.keyup({ keyCode: code }),
     key: code => {
       let prevented = false;
       listeners.keydown({ keyCode: code, preventDefault: () => { prevented = true; } });
@@ -110,7 +113,9 @@ function boot(options = {}) {
   };
 }
 
-(async () => {
+module.exports = { boot, deferred, settle };
+
+if (require.main === module) (async () => {
   const t = boot();
   equal([t.labels(), t.get('dock').style.visibility, t.get('dock').attrs['aria-busy']], [[], 'hidden', 'true'], 'initial cache is not rendered');
   await settle(); t.poll(); await settle();

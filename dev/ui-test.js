@@ -42,6 +42,7 @@ async function tvState(p) {
       focus: tiles.indexOf(f),
       label: document.getElementById('label').textContent,
       menuOpen: document.getElementById('menu').classList.contains('open'),
+      moving: document.getElementById('move-hint').classList.contains('open'),
       menuItems: [...document.querySelectorAll('#menu .menu-item')].map(e => e.textContent + (e.classList.contains('focused') ? '*' : '') + (e.classList.contains('disabled') ? '(x)' : '')),
       panelOpen: document.getElementById('panel').classList.contains('open'),
       toast: document.getElementById('toast').classList.contains('on') ? document.getElementById('toast').textContent : '',
@@ -67,6 +68,40 @@ async function tvState(p) {
     check('apps first, then shortcuts, then +', JSON.stringify(order) === JSON.stringify(['app', 'app', 'app', 'app', 'app', 'app', 'web', 'web', 'youtube', 'add']), order);
     await tv.shot(path.join(OUT, 'tv-home.png'));
 
+    // One menu selection, continuous positioning, explicit placement/cancel.
+    await tv.key(K.ENTER, { hold: 900 });
+    await tv.key(K.ENTER, { hold: 900 });
+    s = await tvState(tv);
+    check('held OK selects Move without immediately placing', s.moving && !s.menuOpen && s.focus === 0, s);
+    await tv.key(K.RIGHT);
+    await tv.key(K.RIGHT);
+    await sleep(400);
+    await tv.shot(path.join(OUT, 'tv-move.png'));
+    const moveLayout = await tv.eval(`(() => {
+      const tile = document.querySelector('.tile.moving').getBoundingClientRect();
+      const view = document.getElementById('dock-viewport').getBoundingClientRect();
+      const hint = document.getElementById('move-hint').getBoundingClientRect();
+      return { tile: { top: tile.top, bottom: tile.bottom }, view: { top: view.top, bottom: view.bottom }, hint: { left: hint.left, right: hint.right, bottom: hint.bottom } };
+    })()`);
+    check('move tile and controls fit without clipping or overlap', moveLayout.tile.top >= moveLayout.view.top && moveLayout.tile.bottom <= moveLayout.view.bottom && moveLayout.hint.left >= 0 && moveLayout.hint.right <= 1920 && moveLayout.hint.bottom < moveLayout.view.top, moveLayout);
+    await tv.key(K.RIGHT, { hold: 800 });
+    s = await tvState(tv);
+    check('holding Right moves to the app boundary and keeps the same tile selected', s.moving && s.focus === 5 && s.label === 'YouTube', s);
+    await tv.key(K.BACK);
+    s = await tvState(tv);
+    check('Back restores the app order without saving', !s.moving && s.focus === 0 && await tv.eval(`localStorage.getItem('gh.appOrder') === null`), s);
+    await tv.key(K.ENTER, { hold: 900 });
+    await tv.key(K.ENTER);
+    await tv.key(K.RIGHT); await tv.key(K.RIGHT);
+    await tv.key(K.ENTER, { hold: 900 });
+    s = await tvState(tv);
+    check('held OK places without launching or reopening the menu', !s.moving && !s.menuOpen && s.focus === 2 && !/would open/.test(s.toast), s);
+    await tv.goto(base + '&bg=nature-06.jpg', 4500);
+    s = await tvState(tv);
+    check('app placement and focus survive reopening', s.focus === 2 && s.label === 'YouTube', s);
+    await tv.key(K.ENTER, { hold: 900 }); await tv.key(K.ENTER);
+    await tv.key(K.LEFT, { hold: 500 }); await tv.key(K.ENTER);
+
     await tv.key(K.LEFT);
     s = await tvState(tv);
     check('Left at the first tile does not wrap', s.focus === 0, s.focus);
@@ -79,23 +114,28 @@ async function tvState(p) {
     await tv.key(K.ENTER, { hold: 900 });
     s = await tvState(tv);
     check('holding OK for 0.9 s opens the menu', s.menuOpen, s);
-    check('menu: Move left disabled, Move right focused, Remove, Cancel', JSON.stringify(s.menuItems) === JSON.stringify(['Move left(x)', 'Move right*', 'Remove', 'Cancel']), s.menuItems);
+    check('menu: Move focused, Remove, Cancel', JSON.stringify(s.menuItems) === JSON.stringify(['Move*', 'Remove', 'Cancel']), s.menuItems);
     await sleep(300);
     await tv.shot(path.join(OUT, 'tv-menu.png'));
     await tv.key(K.BACK);
     s = await tvState(tv);
     check('Back closes the menu', !s.menuOpen, s);
 
-    // Move right through the menu, then check the service saved the order.
+    // Shortcut moves save through the service only when placed.
     await tv.key(K.ENTER, { hold: 900 });
-    await tv.key(K.ENTER);                 // "Move right" is focused
+    await tv.key(K.ENTER);                 // Move
+    await tv.key(K.RIGHT); await tv.key(K.RIGHT); await tv.key(K.LEFT);
+    const beforePlace = await tv.eval(`fetch('http://127.0.0.1:${PORT}/local/state?k=' + encodeURIComponent(window.GH_LOCAL_KEY)).then(r => r.json()).then(d => d.shortcuts.map(x => x.name))`);
+    check('shortcut draft is not saved until OK', beforePlace[0] === 'Wikipedia', beforePlace);
+    await tv.key(K.ENTER);
     await sleep(600);
     s = await tvState(tv);
     check('Move right keeps focus on the moved tile', s.label === 'Wikipedia' && s.focus === 7, s);
     const scOrder = await tv.eval(`fetch('http://127.0.0.1:${PORT}/local/state?k=' + encodeURIComponent(window.GH_LOCAL_KEY)).then(r => r.json()).then(d => d.shortcuts.map(x => x.name))`);
     check('new shortcut order saved in the service', scOrder[0] === 'Map' && scOrder[1] === 'Wikipedia', scOrder);
     await tv.key(K.ENTER, { hold: 900 });
-    await tv.key(K.ENTER);                 // Move left is now the first enabled item
+    await tv.key(K.ENTER);                 // Move
+    await tv.key(K.LEFT); await tv.key(K.ENTER);
     await sleep(600);
     s = await tvState(tv);
     check('Move left puts it back', s.label === 'Wikipedia' && s.focus === 6, s);
@@ -111,7 +151,7 @@ async function tvState(p) {
     await tv.key(K.ENTER, { hold: 900 });
     s = await tvState(tv);
     check('app menu offers Hide', s.menuItems.indexOf('Hide') >= 0, s.menuItems);
-    await tv.key(K.DOWN);                  // Move left -> Hide
+    await tv.key(K.DOWN);                  // Move -> Hide
     const beforeHide = await tvState(tv);
     await tv.key(K.ENTER);
     await sleep(400);
@@ -210,7 +250,7 @@ async function tvState(p) {
     check('no photo service: the last tile is an app', s.label === 'Internet', s.label);
     await tvOld.key(K.ENTER, { hold: 900 });
     s = await tvState(tvOld);
-    check('no photo service: app menu has no Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move left*', 'Move right(x)', 'Cancel']), s.menuItems);
+    check('no photo service: app menu has no Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move*', 'Cancel']), s.menuItems);
     await tvOld.key(K.BACK);
     const oldErrors = tvOld.errors.filter((e) => !/favicon\.ico/.test(e));
     check('no photo service: no script errors', oldErrors.length === 0, oldErrors);
@@ -226,8 +266,9 @@ async function tvState(p) {
     check('inputs: in config order, with the port under the name', s.label === 'Games console' && /HDMI 2/.test(await tvIn.eval(`document.querySelector('#dock-row .tile.focused').textContent`)), s.label);
     await tvIn.key(K.ENTER, { hold: 900 });
     s = await tvState(tvIn);
-    check('inputs: menu has Move and Hide, not Remove', JSON.stringify(s.menuItems) === JSON.stringify(['Move left(x)', 'Move right*', 'Hide', 'Cancel']), s.menuItems);
-    await tvIn.key(K.ENTER);                // Move right
+    check('inputs: menu has Move and Hide, not Remove', JSON.stringify(s.menuItems) === JSON.stringify(['Move*', 'Hide', 'Cancel']), s.menuItems);
+    await tvIn.key(K.ENTER);                // Move
+    await tvIn.key(K.RIGHT); await tvIn.key(K.ENTER);
     await sleep(300);
     s = await tvState(tvIn);
     check('inputs: Move right swaps the two inputs', s.label === 'Games console' && s.focus === 7, s);
@@ -245,7 +286,7 @@ async function tvState(p) {
     check('Live TV: after the HDMI inputs, with no port caption', s.label === 'Live TV' && !/HDMI/.test(liveText), { label: s.label, text: liveText });
     await tvIn.key(K.ENTER, { hold: 900 });
     s = await tvState(tvIn);
-    check('Live TV: menu has Move left and Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move left*', 'Move right(x)', 'Hide', 'Cancel']), s.menuItems);
+    check('Live TV: menu has Move and Hide', JSON.stringify(s.menuItems) === JSON.stringify(['Move*', 'Hide', 'Cancel']), s.menuItems);
     await tvIn.key(K.BACK);
     await tvIn.key(K.ENTER);
     await sleep(400);
@@ -254,7 +295,7 @@ async function tvState(p) {
     await tvIn.goto(base + '&still=1&inputs=1&photoService=0&focus=6', 4500);
     await tvIn.key(K.ENTER, { hold: 900 });
     s = await tvState(tvIn);
-    check('inputs, no photo service: menu has no Hide or Remove', JSON.stringify(s.menuItems) === JSON.stringify(['Move left(x)', 'Move right*', 'Cancel']), s.menuItems);
+    check('inputs, no photo service: menu has no Hide or Remove', JSON.stringify(s.menuItems) === JSON.stringify(['Move*', 'Cancel']), s.menuItems);
     await tvIn.key(K.BACK);
     const inErrors = tvIn.errors.filter((e) => !/favicon\.ico/.test(e));
     check('inputs: no script errors', inErrors.length === 0, inErrors);

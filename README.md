@@ -88,9 +88,17 @@ Your own logo: `scripts/use-logo.sh path/to/logo.png` (square, ideally 1024 x
 |---|---|
 | Left / Right | move along the dock |
 | OK | open the app, website or video, or switch to the HDMI input |
-| Hold OK | Move left, Move right, Remove (shortcuts) or Hide (apps and inputs), Cancel |
+| Hold OK | open the menu: Move, Remove (shortcuts) or Hide (apps and inputs), Cancel |
+| Left / Right in **Move** | reposition the selected tile; hold an arrow to keep moving |
+| OK in **Move** | save the position and return to the dock |
+| Back in **Move** | cancel and restore the saved order |
 | Back | closes the menu or the panel; does nothing on the home screen |
 | OK on **+** | the website address and password; New password; show hidden apps |
+
+To arrange a tile, hold OK, choose **Move**, then use Left and Right to place it.
+The lifted tile stays selected as the other tiles make room. Press OK to save.
+Apps, inputs and shortcuts keep their own sections; a tile moves within its section.
+Leaving Glass Home before pressing OK cancels the move.
 
 **Photos and shortcuts.** On a phone on the same Wi-Fi, open the address shown
 under **+** and sign in with the password shown there. Upload photos (up to

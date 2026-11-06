@@ -2,8 +2,9 @@
  * Glass Home - home screen.
  *
  * Remote keys (no registration needed): Left/Right move along the dock (no
- * wrap), OK opens, holding OK for 0.7 s opens a small menu (Move left, Move
- * right, Remove or Hide, Cancel), Back closes menus and does nothing at the
+ * wrap), OK opens, holding OK for 0.7 s opens a small menu (Move, Remove or
+ * Hide, Cancel). In Move, Left/Right reposition, OK places, and Back cancels.
+ * Back closes menus and does nothing at the
  * top level. While the app is hidden (another app in front) every timer and
  * animation is paused.
  */
@@ -39,6 +40,7 @@
   var row = $('dock-row');
   var label = $('label');
   var menu = $('menu');
+  var moveHint = $('move-hint');
   var panel = $('panel');
   var scrim = $('scrim');
 
@@ -63,6 +65,8 @@
   var mode = 'dock';
   var menuItems = [];
   var menuFocus = 0;
+  var moving = null;               // temporary order; committed only by OK
+  var shortcutOrderVersion = 0;    // reject polls started before an order save
   var panelButtons = [];
   var panelFocus = 0;
   var panelRowFocus = {};
@@ -338,12 +342,14 @@
     return el;
   }
 
-  function rebuildDock(keepKey) {
+  function rebuildDock(keepKey, animateMove) {
     // Cached selection/hiding may be stale after the TV stops the UI process.
     // Keep the first dock empty until the service restores the saved choices.
     if (initialChoicesPending) return;
-    var wanted = keepKey || focusKey;
-    items = buildItems();
+    var wanted = moving ? moving.key : keepKey || focusKey;
+    var before = {};
+    items.forEach(function (it, i) { before[it.key] = i; });
+    items = applyMoveOrder(buildItems());
     var seen = {};
     var els = items.map(function (it) {
       var sig = signature(it);
@@ -369,6 +375,17 @@
     var idx = -1;
     for (var i = 0; i < items.length; i++) if (items[i].key === wanted) { idx = i; break; }
     setFocus(idx >= 0 ? idx : clamp(focus, 0, items.length - 1), true);
+    renderMoveHint();
+    if (animateMove && moving) items.forEach(function (it, i) {
+      var cur = tileEls[it.key];
+      if (!cur.el.animate || before[it.key] === undefined || before[it.key] === i) return;
+      if (cur.moveAnimation) cur.moveAnimation.cancel();
+      var lift = it.key === moving.key ? ' translateY(-10px) scale(1.12)' : '';
+      cur.moveAnimation = cur.el.animate([
+        { transform: 'translateX(' + ((before[it.key] - i) * (TILE + GAP)) + 'px)' + lift },
+        { transform: 'translateX(0)' + lift }
+      ], { duration: 160, easing: 'ease-out' });
+    });
   }
 
   function sizeFor(n) {
@@ -487,10 +504,8 @@
     var it = items[focus];
     if (!it || it.kind === 'add') return;
     var group = groupOf(it);
-    var gi = group.indexOf(it);
     menuItems = [
-      { label: 'Move left', disabled: gi <= 0, run: function () { moveItem(it, -1); } },
-      { label: 'Move right', disabled: gi >= group.length - 1, run: function () { moveItem(it, 1); } },
+      { label: 'Move', disabled: group.length < 2, run: function () { beginMove(it); } },
       it.kind === 'web' || it.kind === 'youtube' ? { label: 'Remove', run: function () { removeShortcut(it); } }
         : photoService ? { label: 'Hide', run: function () { hideApp(it); } }
         : null,                           // apps and inputs: no + to bring them back
@@ -525,38 +540,123 @@
     mode = 'dock';
   }
 
-  function moveItem(it, dir) {
-    var group = groupOf(it);
-    var gi = group.indexOf(it);
-    var gj = gi + dir;
-    if (gj < 0 || gj >= group.length) return;
-    if (it.kind === 'app') {
-      var keys = group.map(function (x) { return x.appKey; });
-      var t = keys[gi]; keys[gi] = keys[gj]; keys[gj] = t;
-      var full = orderedAppKeys().filter(function (k) { return keys.indexOf(k) < 0; });
-      appOrder = keys.concat(full);
-      ls.set('gh.appOrder', appOrder);
-      rebuildDock(it.key);
-      return;
+  // ---------- move mode ----------
+  function moveGroup(it) {
+    return it.kind === 'web' || it.kind === 'youtube' ? 'shortcut' : it.kind;
+  }
+
+  function inMoveGroup(it) { return moving && moveGroup(it) === moving.group; }
+
+  function applyMoveOrder(list) {
+    if (!moving) return list;
+    if (!list.some(function (it) { return it.key === moving.key; })) {
+      endMove();
+      toast('This item is no longer on the dock.');
+      return list;
     }
-    if (it.kind === 'input') {
-      var ins = group.map(function (x) { return x.key; });
-      var u = ins[gi]; ins[gi] = ins[gj]; ins[gj] = u;
-      inputOrder = ins;
-      ls.set('gh.inputOrder', inputOrder);
-      rebuildDock(it.key);
-      return;
-    }
-    var ids = shortcuts.map(function (s) { return s.id; });
-    var a = ids.indexOf(it.scId);
-    var b = a + dir;
-    var before = shortcuts.slice();
-    var tmp = shortcuts[a]; shortcuts[a] = shortcuts[b]; shortcuts[b] = tmp;
+    // Reconcile refreshed icons and additions/removals without losing the draft.
+    var group = list.filter(inMoveGroup);
+    var keys = group.map(function (it) { return it.key; });
+    moving.keys = moving.keys.filter(function (k) { return keys.indexOf(k) >= 0; });
+    keys.forEach(function (k) { if (moving.keys.indexOf(k) < 0) moving.keys.push(k); });
+    group.sort(function (a, b) { return moving.keys.indexOf(a.key) - moving.keys.indexOf(b.key); });
+    var i = 0;
+    return list.map(function (it) { return inMoveGroup(it) ? group[i++] : it; });
+  }
+
+  function beginMove(it) {
+    moving = { key: it.key, group: moveGroup(it), keys: groupOf(it).map(function (x) { return x.key; }), saving: false };
+    mode = 'move';
+    label.classList.remove('on');
     rebuildDock(it.key);
-    D.orderShortcuts(shortcuts.map(function (s) { return s.id; })).catch(function () {
-      shortcuts = before;
-      rebuildDock(it.key);
-      toast('Couldn’t save the new order. Is the photo service running?');
+  }
+
+  function renderMoveHint() {
+    dock.classList.toggle('moving', !!moving);
+    moveHint.classList.toggle('open', !!moving);
+    moveHint.setAttribute('aria-hidden', moving ? 'false' : 'true');
+    items.forEach(function (it) {
+      var el = tileEls[it.key].el;
+      el.classList.toggle('moving', !!moving && it.key === moving.key);
+    });
+    if (!moving) return;
+    var i = moving.keys.indexOf(moving.key);
+    $('move-title').textContent = items[focus].label;
+    $('move-position').textContent = (i + 1) + ' of ' + moving.keys.length;
+    $('move-left').classList.toggle('disabled', moving.saving || i === 0);
+    $('move-right').classList.toggle('disabled', moving.saving || i === moving.keys.length - 1);
+    $('move-help').textContent = moving.saving ? 'Saving position…' : 'Left / Right to move   ·   OK to place   ·   Back to cancel';
+    moveHint.style.bottom = (DOCK_BOTTOM + dockHeight() + 30) + 'px';
+  }
+
+  function moveItem(dir) {
+    if (!moving || moving.saving) return;
+    var i = moving.keys.indexOf(moving.key), j = i + dir;
+    if (j < 0 || j >= moving.keys.length) return;
+    moving.keys[i] = moving.keys[j];
+    moving.keys[j] = moving.key;
+    rebuildDock(moving.key, true);
+  }
+
+  function endMove() {
+    moving = null;
+    mode = 'dock';
+    Object.keys(tileEls).forEach(function (k) {
+      var cur = tileEls[k];
+      if (cur.moveAnimation) { cur.moveAnimation.cancel(); cur.moveAnimation = null; }
+    });
+  }
+
+  function finishMove() {
+    var key = moving.key;
+    endMove();
+    focusKey = key;
+    ls.set('gh.focus', key);
+    rebuildDock(key);
+  }
+
+  function cancelMove() {
+    if (!moving || moving.saving) return;  // an accepted save is already in flight
+    finishMove();                        // base order was never changed
+  }
+
+  function placeMove() {
+    if (!moving || moving.saving) return;
+    var draft = moving;
+    var group = items.filter(inMoveGroup);
+    var baseKeys = buildItems().filter(inMoveGroup).map(function (it) { return it.key; });
+    if (JSON.stringify(baseKeys) === JSON.stringify(moving.keys)) { finishMove(); return; }
+    if (moving.group !== 'shortcut') {
+      var keys = group.map(function (it) { return it.kind === 'app' ? it.appKey : it.key; });
+      var full = moving.group === 'app' ? orderedAppKeys() : inputOrder;
+      var order = keys.concat(full.filter(function (k) { return keys.indexOf(k) < 0; }));
+      var storeKey = moving.group === 'app' ? 'gh.appOrder' : 'gh.inputOrder';
+      ls.set(storeKey, order);
+      if (JSON.stringify(ls.get(storeKey)) !== JSON.stringify(order)) {
+        toast('Couldn’t save the position. Press OK to retry or Back to cancel.');
+        return;
+      }
+      if (moving.group === 'app') appOrder = order; else inputOrder = order;
+      finishMove();
+      return;
+    }
+    moving.saving = true;
+    shortcutOrderVersion++;
+    renderMoveHint();
+    var ids = group.map(function (it) { return it.scId; });
+    D.orderShortcuts(ids).then(function () {
+      shortcutOrderVersion++;
+      // Retain shortcuts added by a phone while the request was in flight.
+      shortcuts = shortcuts.slice().sort(function (a, b) {
+        var ai = ids.indexOf(a.id), bi = ids.indexOf(b.id);
+        return (ai < 0 ? ids.length : ai) - (bi < 0 ? ids.length : bi);
+      });
+      if (moving === draft) finishMove();
+    }, function () {
+      if (moving !== draft) return;
+      moving.saving = false;
+      if (document.hidden) cancelMove(); else renderMoveHint();
+      toast('Couldn’t save the position. Press OK to retry or Back to cancel.');
     });
   }
 
@@ -850,6 +950,13 @@
   }
 
   // ---------- keys ----------
+  function consumeEnter() {
+    waitEnterRelease = true;
+    clearTimeout(releaseTimer);
+    // Key-up normally releases the latch; recover if the TV loses that event.
+    releaseTimer = setTimeout(function () { waitEnterRelease = false; }, 2500);
+  }
+
   function onKeyDown(e) {
     var k = e.keyCode;
     if (initialChoicesPending) {
@@ -859,12 +966,19 @@
     if (k === KEY.BACK || k === KEY.ESC || (k === KEY.BACKSPACE && cfg.preview)) {
       e.preventDefault();
       if (mode === 'menu') closeMenu();
+      else if (mode === 'move') cancelMove();
       else if (mode === 'panel') closePanel();
       else if (mode === 'vetro') closeVetroPicker();
       return;                                   // at the top level Back does nothing
     }
     if ([KEY.LEFT, KEY.RIGHT, KEY.UP, KEY.DOWN, KEY.ENTER].indexOf(k) < 0) return;
     e.preventDefault();
+    if (k === KEY.ENTER && (waitEnterRelease || e.repeat)) return;
+    if (mode === 'move') {
+      if (k === KEY.LEFT || k === KEY.RIGHT) moveItem(k === KEY.LEFT ? -1 : 1);
+      else if (k === KEY.ENTER) { consumeEnter(); placeMove(); }
+      return;
+    }
     if (mode === 'vetro') {
       if (k === KEY.ENTER && !e.repeat) activateVetroRow();
       if (k === KEY.UP || k === KEY.DOWN) {
@@ -875,7 +989,7 @@
     }
     if (mode === 'menu') {
       if (k === KEY.ENTER) {
-        if (waitEnterRelease || e.repeat) return;   // OK still held from the long press
+        consumeEnter();                            // selecting an action cannot also launch a tile
         var m = menuItems[menuFocus];
         closeMenu();
         if (m && !m.disabled) m.run();
@@ -918,11 +1032,8 @@
         longTimer = null;
         if (!enterDown || mode !== 'dock') return;
         longFired = true;
-        waitEnterRelease = true;
+        consumeEnter();
         openMenu();
-        // Normally the key-up clears this; the timer only covers a lost key-up.
-        clearTimeout(releaseTimer);
-        releaseTimer = setTimeout(function () { waitEnterRelease = false; }, 2500);
       }, cfg.longPressMs);
     }
   }
@@ -1005,10 +1116,11 @@
   // ---------- service ----------
   function refresh() {
     if (!photoService) return Promise.resolve({ online: false });
+    var orderVersion = shortcutOrderVersion;
     return D.refresh().then(function (r) {
       serviceUp = r.online;
       if (r.changed) {
-        shortcuts = (r.state && r.state.shortcuts) || [];
+        if (orderVersion === shortcutOrderVersion) shortcuts = (r.state && r.state.shortcuts) || [];
         rebuildDock();
         if (backdrop) updatePhotos();
       }
@@ -1070,11 +1182,15 @@
   // ---------- multitasking ----------
   function onVisibility() {
     if (document.hidden) {
+      if (moving) cancelMove();
       document.documentElement.classList.add('paused');
       clearInterval(clockTimer);
       clearInterval(pollTimer);
       clearTimeout(retryTimer);
       clearTimeout(longTimer);
+      longTimer = null;
+      clearTimeout(releaseTimer);
+      waitEnterRelease = false;
       enterDown = false;
       $('toast').classList.remove('on');
       if (backdrop) backdrop.pause();

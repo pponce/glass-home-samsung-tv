@@ -39,6 +39,7 @@ jobs:
           node dev/test-vetro-reply-integration.js
           node dev/test-dock-preferences.js
           node dev/test-startup.js
+          node dev/test-dock-move.js
       - name: Website and service API
         run: dev/test-api.sh
       - name: TV app and phone website in a browser
