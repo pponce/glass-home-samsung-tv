@@ -12,5 +12,6 @@ const assert=require('assert').strict,fs=require('fs');const stock=require('../a
  await assert.rejects(reader.icon('Off'));await assert.rejects(reader.icon('../exec'));assert.equal(stock.image(Buffer.from('<svg/>')),null);
  assert.throws(()=>stock.catalog({registryError:'missing',apps:[]},{},'GlassHome1'));fail=true;assert.equal((await reader(true)).available,false);await assert.rejects(reader.icon('Pinned'));
  assert.ok(!fs.readFileSync('app/index.html','utf8').includes('js/vetro-permissions.js'));assert.ok(fs.readFileSync('app/service/server.js','utf8').includes("require('./vetro-stock').createReader"));
+ const refused=stock.createReader('GlassHome1',null,{readHome:async()=>{throw Object.assign(Error('Vetro returned HTTP 503.'),{vetro:{code:'http',status:503,message:'Vetro returned HTTP 503.'}});}});assert.equal((await refused(true)).error.status,503);
  console.log('PASS stock catalog: unpinned apps, filtering, icon fallback, stale/errors, UI wiring');
 })().catch(e=>{console.error(e);process.exitCode=1;});

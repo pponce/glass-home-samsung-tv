@@ -715,7 +715,7 @@
     panelButtons.push({ id: 'close', label: 'Done' });
     if (V.entries.length) panelButtons.push({ id: 'vetro', label: 'Choose apps', row: 1 });
     panelButtons.push({ id: 'vetro-refresh', label: V.loading ? 'Checking apps…' : 'Refresh apps', row: 1 });
-    if (GH.vetroPermissions) panelButtons.push({ id: 'vetro-connect', label: GH.vetroPermissions.busy ? 'Requesting access…' : 'Connect to Vetro', row: 1 });
+    if (GH.vetroPermissions) panelButtons.push({ id: 'vetro-connect', label: GH.vetroPermissions.busy ? 'Connecting…' : 'Connect to Vetro', row: 1 });
     panelButtons.push({ id: 'ytmode', label: 'YouTube links: ' + YT_MODE_NAMES[ytMode], small: true, row: 2 });
     panelButtons.forEach(function (b, i) { if (b.id === priorButton) panelFocus = i; });
     panelFocus = clamp(panelFocus, 0, panelButtons.length - 1);

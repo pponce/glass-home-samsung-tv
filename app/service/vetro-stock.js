@@ -46,7 +46,7 @@ function createReader(self,onError,options){
         (both[1].entries||[]).forEach(function(e){if(e&&!e.system&&!e.panel&&!e.source&&/^[A-Za-z0-9_.-]{1,120}$/.test(e.slug))slugs[e.appId]=e.slug;});
         return {available:true,apps:apps,address:home.address,source:'samsung-apps',transport:'stock',iconSupport:true};
       });
-    }).catch(function(e){if(onError)onError({code:'stock',message:e.message});return {available:false,apps:[],error:{code:'stock',message:e.message}};}).then(function(result){cached=result;at=Date.now();pending=null;return result;});
+    }).catch(function(e){var error=e.vetro||{code:e.status?'http':'stock',message:e.message};if(e.status)error.status=e.status;if(onError)onError(error);return {available:false,apps:[],error:error};}).then(function(result){cached=result;at=Date.now();pending=null;return result;});
     return pending;
   }
   read.current=function(){return cached;};
