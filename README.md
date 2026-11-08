@@ -108,9 +108,9 @@ start time). New photos appear next on the TV. The phone stays signed in for
 30 days.
 
 **Apps from Vetro.** Glass Home checks for [Vetro](https://github.com/andrearicci93/vetro)
-on the same TV whenever it opens or returns to the foreground. With approved
-app access and Samsung Apps catalog support, **+ → Choose apps** shows installed
-apps from Samsung Apps, including apps not pinned to the Samsung Home row.
+on the same TV whenever it opens or returns to the foreground. With stock Vetro
+0.5.0 connected to root, **+ → Choose apps** shows eligible installed apps,
+including apps not pinned to the Samsung Home row.
 Home-row apps are selected initially and keep their Samsung order; other apps
 are unchecked. This is an installed-app list, not the store's recommendations.
 
@@ -128,10 +128,9 @@ Deselecting an app also removes its hidden entry, so selecting it again makes
 it visible. Hidden inputs retain their settings. Use **Show hidden apps** under
 **+** to reveal hidden items without changing your app selection.
 
-**Refresh apps** reads the complete paginated catalog and refreshes its Samsung
-metadata. Settings, Home controls, Live TV and Glass Home itself are omitted;
-Samsung TV Plus opens through its app. Registry components without a Samsung
-Apps entry are excluded. Discovery requires the photo service and works with
+**Refresh apps** reads the installed registry and Home ordering. Hidden registry
+components, disabled or restricted apps, Live TV and Glass Home itself are omitted;
+Samsung TV Plus opens through its app. Discovery requires the photo service and works with
 Vetro's launcher disabled. If a refresh fails, the last complete saved catalog
 and your choices remain usable. Without a saved catalog, configured apps serve
 as a fallback. A successfully read empty catalog stays empty.
