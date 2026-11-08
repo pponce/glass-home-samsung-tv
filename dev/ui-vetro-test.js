@@ -17,6 +17,18 @@ function check(value, message) { assert(value, message); checks++; }
   const vetro = http.createServer((req, res) => {
     requests++;
     assert.strictEqual(req.method, 'GET');
+    if (req.url.startsWith('/apps/icon?') || req.url.startsWith('/dock/icon?')) {
+      res.writeHead(404, {'Content-Type':'application/json'}); res.end('{"error":"icon unavailable"}'); return;
+    }
+    if (req.url === '/apps' || req.url === '/apps?refresh=1') {
+      res.writeHead(responseStatus, {'Content-Type':'application/json'});
+      res.end(JSON.stringify({apps:[
+        {appId:'org.tizen.netflix-app',name:'Netflix',show:true,disabled:false},
+        {appId:'test.Spotify',name:'Spotify',show:true,disabled:false},
+        {appId:'com.samsung.tv.tvPlusDeeplinker',name:'Samsung TV Plus',show:true,disabled:false},
+        {appId:'GlassHome1.GlassHome',name:'Glass Home',show:true,disabled:false}
+      ]})); return;
+    }
     assert.strictEqual(req.url, '/dock');
     res.writeHead(responseStatus, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ entries: [
