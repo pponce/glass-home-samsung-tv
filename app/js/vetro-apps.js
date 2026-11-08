@@ -35,7 +35,7 @@
   var ICON_CACHE = 'gh.vetro.icons.v1', ICON_BUDGET = 2 * 1024 * 1024;
   function iconUrl(value) {
     return typeof value === 'string' && value.length <= 174786 &&
-      /^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value);
+      /^data:image\/(?:png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
   }
   var savedIcons = ls.get(ICON_CACHE), iconBytes = 0;
   if (Array.isArray(savedIcons) && savedIcons.length <= 64) savedIcons.forEach(function (entry) {
@@ -77,7 +77,7 @@
         if (changed) changed();
       }).catch(function (error) {
         if (error && error.code === 'cancelled') { delete iconAttempts[id]; return; }
-        // A failed permission or authenticated reply stops this background pass.
+        // A failed icon read stops this background pass.
         V.iconSupport = false;
       }).then(next);
     }

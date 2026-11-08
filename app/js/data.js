@@ -76,7 +76,7 @@
   };
 
   D.vetroApps = function (refresh) {
-    return request('GET', withKey('/local/vetro/apps' + (refresh ? '?refresh=1' : '')), undefined, 28000).then(function (r) {
+    return request('GET', withKey('/local/vetro/apps' + (refresh ? '?refresh=1' : '')), undefined, 75000).then(function (r) {
       if (r.status !== 200 || !r.data) {
         var err = new Error('Glass Home could not retrieve its app list.');
         err.vetro = { code: 'service', detail: r.status ? 'HTTP ' + r.status : 'unreachable', message: err.message };
@@ -94,6 +94,16 @@
       if (r.status !== 200 || !r.data || [200,202,404].indexOf(r.data.status) < 0)
         throw new Error('Vetro reply unavailable');
       return r.data;
+    });
+  };
+
+  D.vetroIcon = function (appId, current) {
+    if (!/^[A-Za-z0-9_.-]{1,120}$/.test(appId)) return Promise.reject(new Error('Invalid app ID'));
+    if (current && !current()) return Promise.reject(Object.assign(new Error('Cancelled'), {code:'cancelled'}));
+    return request('GET', withKey('/local/vetro/icon/' + encodeURIComponent(appId)), undefined, 55000).then(function (r) {
+      if (r.status !== 200 || !r.data) throw new Error('Vetro icon unavailable');
+      if (current && !current()) throw Object.assign(new Error('Cancelled'), {code:'cancelled'});
+      return r.data.icon;
     });
   };
 

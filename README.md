@@ -136,14 +136,7 @@ Vetro's launcher disabled. If a refresh fails, the last complete saved catalog
 and your choices remain usable. Without a saved catalog, configured apps serve
 as a fallback. A successfully read empty catalog stays empty.
 
-The permission integration uses `apps.catalog` under `apps.read`. A Vetro
-permission build without that method needs an update. Older Vetro without the
-permission port uses its published `/dock` list on port 8099, which contains
-only Home-row apps. That reader tries localhost, then the TV's own private IPv4
-addresses if localhost is denied, within one 25-second deadline. It caches reads
-for 30 seconds; Refresh bypasses that cache, although the older Vetro may retain
-its own published list. A permission denial or failed scoped read never falls
-back to the older endpoint.
+Glass Home uses its local service to read stock Vetro 0.5.0's installed app registry (`/apps`) and Home ordering (`/dock`). Only enabled, visible, launchable entries are offered. Unpinned installed apps can be selected. The client connects only to Vetro on this TV; it does not store an owner token. Reads are cached for 30 seconds and Refresh requests a new inventory. A failed or incomplete registry read keeps the previous saved selection.
 
 When Vetro's app list is available, ordinary app tiles ask Vetro to open the
 selected app through its existing app-launch API. This works with upstream
@@ -299,14 +292,10 @@ iPhone camera, and wrote and tested the app. It also watched one cat video.
 with Samsung, Apple or any app shown.
 
 
-## Vetro app permissions
+## Connecting to Vetro
 
-With Vetro's optional permission API, choose **+ → Connect to Vetro**. In Vetro's paired dashboard, open **App permissions**, enable app access, refresh requests and approve Glass Home's **List TV apps** and **Open TV apps** permissions. Return to Glass Home and choose **Refresh apps**. Approvals bind the installed app and its signer; after a Glass Home update, request approval again.
+Open Vetro and connect root, then choose **+ → Connect to Vetro** in Glass Home. Choose **Refresh apps** to update the installed app list. No separate per-app approval is required by stock Vetro.
 
-Glass Home requests no task, system, brightness, remote-control or power permissions. The widget communicates through Tizen MessagePort under its own app identity; it never stores Vetro's owner credential. An owner may approve a subset. Missing launch permission leaves normal native app launching available, without Vetro return coordination.
+Custom artwork takes priority. For selected apps, Glass Home tries Home-row artwork from `/dock/icon`, then package artwork from `/apps/icon`. Unpinned apps use their package icon when available. Exact store artwork depends on what the TV publishes; absent artwork leaves the native icon or app name. PNG/JPEG responses are bounded to 128 KiB. The saved image cache holds at most 64 images and 2 MiB for up to a day. Hidden apps are not downloaded.
 
-When Vetro advertises Samsung icon support, Glass Home reads the selected apps' artwork with the same **List TV apps** permission. Images load in the background, with name-only tiles filled first. Custom configured artwork takes priority; Samsung images are preferred over the native fallback. Unavailable images leave the app usable with its native icon or name.
-
-Each PNG is checked and assembled from authenticated chunks before display. App launches can run between image requests. A bounded browser cache makes artwork available on reopening for up to a day; **Refresh apps** also refreshes icons in the background. The saved image cache holds at most 64 images and 2 MiB of encoded image data. Hidden apps are not downloaded. Vetro versions without the icon capability retain the native-image/name fallback, and denied icon reads never switch to an owner or legacy endpoint.
-
-Older Vetro without the permission port retains the existing app-list reader and coordinated launch path. A permission refusal or lost reply from a newer Vetro does not downgrade to that older API. An uncertain launch outcome is reported without sending a second launch. Vetro remains optional; normal native launching is retained when it is unavailable.
+Tile movement, hidden apps and saved selections are stored independently of discovery. An uncertain launch result is reported without sending a second launch.

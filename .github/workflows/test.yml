@@ -31,6 +31,7 @@ jobs:
           node dev/test-parsers.js
           node dev/test-limiter.js
           node dev/test-data.js
+          node dev/test-vetro-stock.js
           node dev/test-vetro.js
           node dev/test-vetro-launch.js
           node dev/test-vetro-permissions.js
@@ -47,3 +48,21 @@ jobs:
       - name: Vetro app selection in a browser
         run: node dev/ui-vetro-test.js
 
+      - name: Package unsigned stock-compatible widget
+        run: |
+          python3 - <<'PYZIP'
+          import pathlib, zipfile
+          root = pathlib.Path('app')
+          pathlib.Path('dist').mkdir(exist_ok=True)
+          with zipfile.ZipFile('dist/GlassHome-stock-vetro-0.5.0-unsigned.wgt', 'w', zipfile.ZIP_DEFLATED) as out:
+              for p in sorted(root.rglob('*')):
+                  rel = p.relative_to(root)
+                  if p.is_file() and not any(part.startswith('.') for part in rel.parts) and p.suffix != '.md':
+                      out.write(p, str(rel))
+          PYZIP
+          shasum -a 256 dist/*.wgt > dist/SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: GlassHome-stock-vetro-0.5.0-unsigned
+          path: dist/
+          retention-days: 30

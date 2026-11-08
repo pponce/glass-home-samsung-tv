@@ -104,6 +104,7 @@ function platform({available=true,reply=()=>Promise.resolve(true),smartStatus=20
     let body='';req.on('data',chunk=>{body+=chunk;});req.on('end',()=>{
       requests.push([req.method,req.url,body]);res.setHeader('Content-Type','application/json');
       if(req.url==='/dock')res.end(JSON.stringify({entries:[{appId:id,label:'Netflix'}]}));
+      else if(req.url.startsWith('/apps')&&req.method==='GET')res.end(JSON.stringify({apps:[{appId:id,name:'Netflix',show:true,disabled:false}]}));
       else if(req.url==='/status')res.end(JSON.stringify({agent:{connected:rootReady}}));
       else if(req.url==='/apps/launch'){res.statusCode=postStatus;res.end(JSON.stringify({ok:true,sent:1}));}
       else{res.statusCode=404;res.end('{}');}

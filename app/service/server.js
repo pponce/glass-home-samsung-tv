@@ -126,7 +126,7 @@ function createService(opts) {
   Object.keys(fileCfg).forEach(function (k) { if (k in DEFAULTS) cfg[k] = fileCfg[k]; });
   Object.keys(opts.config || {}).forEach(function (k) { cfg[k] = opts.config[k]; });
   if (opts.port) cfg.port = opts.port;
-  var readVetroApps = vetro.createReader(cfg.packageId, function (err) {
+  var readVetroApps = require('./vetro-stock').createReader(cfg.packageId, function (err) {
     note('Vetro apps: ' + err.code + (err.detail ? ' (' + err.detail + ')' : '') + ' - ' + err.message);
   });
   var launchVetroApp = vetroLaunch.createLauncher(readVetroApps);
@@ -884,6 +884,9 @@ function createService(opts) {
     if (s[1] === 'vetro' && s[2] === 'apps' && s.length === 3 && m === 'GET') {
       return readVetroApps(ctx.query.refresh === '1').then(function (result) { sendJSON(res, 200, result); });
     }
+    if (s[1] === 'vetro' && s[2] === 'icon' && s.length === 4 && m === 'GET') {
+      return readVetroApps.icon(s[3]).then(function (icon) { sendJSON(res, 200, {icon:icon}); }, function () { sendJSON(res, 502, {error:'icon-unavailable'}); });
+    }
     if (s[1] === 'vetro' && s[2] === 'launch' && s.length === 3) {
       if (m === 'GET') return sendJSON(res, 200, launchVetroApp.status());
       if (m !== 'POST') return refuseBody(req, res, 405, { error: 'method' });
@@ -930,7 +933,7 @@ function createService(opts) {
       if (top === 'health' && segs.length === 1) {
         corsOpen(res);
         if (ctx.method === 'OPTIONS') return sendEmpty(res, 204);
-        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: vetro.version, vetroLaunch: vetroLaunch.version, vetroPermissions: 2, dockPreferences: 1 });
+        return sendJSON(res, 200, { ok: true, name: 'Glass Home', version: VERSION, vetroApps: 4, vetroLaunch: vetroLaunch.version, vetroPermissions: 2, vetroStock: 1, dockPreferences: 1 });
       }
       if (top === 'local') return handleLocal(ctx);
       if (top === 'media') {

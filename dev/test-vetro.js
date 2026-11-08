@@ -157,7 +157,7 @@ function simulatedReader(options) {
   const server = http.createServer((req, res) => {
     calls.push([req.method, req.url, req.headers.origin || null]);
     res.writeHead(status, { 'Content-Type': 'application/json' });
-    res.end(response);
+    res.end(req.url.startsWith('/apps') ? JSON.stringify({apps:expected.map(a=>({appId:a.appId,name:a.label,show:true,disabled:false}))}) : response);
   });
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(8099, '127.0.0.1', resolve); });
   let svc;
@@ -199,18 +199,18 @@ function simulatedReader(options) {
     });
     await new Promise((resolve, reject) => svc.start(err => err ? reject(err) : resolve()));
     const endpoint = 'http://127.0.0.1:18393/local/vetro/apps';
-    equal((await (await fetch('http://127.0.0.1:18393/health')).json()).vetroApps, 3, 'health identifies the running reader revision');
+    equal((await (await fetch('http://127.0.0.1:18393/health')).json()).vetroApps, 4, 'health identifies the running reader revision');
     const authBefore = calls.length;
     equal((await fetch(endpoint)).status, 403, 'unauthenticated caller cannot read catalog');
     equal(calls.length, authBefore, 'unauthenticated request does not contact Vetro');
     const url = endpoint + '?k=' + encodeURIComponent(svc.localKey());
-    equal(await (await fetch(url)).json(), { available: true, source: 'samsung-home', apps: expected, address: '127.0.0.1' }, 'authenticated local channel returns catalog');
+    equal(await (await fetch(url)).json(), { available: true, source: 'samsung-apps', apps: expected, address: '127.0.0.1', transport:'stock', iconSupport:true }, 'authenticated local channel returns catalog');
     const refreshBefore = calls.length;
     await fetch(url + '&refresh=1');
-    equal(calls.length, refreshBefore + 1, 'refresh query causes another read from Vetro');
+    equal(calls.length, refreshBefore + 3, 'refresh query causes another read from Vetro');
     status = 503;
     const apiFailure = await (await fetch(url + '&refresh=1')).json();
-    equal(apiFailure.error.status, 503, 'local endpoint includes the underlying error');
+    assert.match(apiFailure.error.message,/503/); checks++;
     equal((await fetch(url, { method: 'POST' })).status, 404, 'no mutation endpoint');
   } finally {
     if (svc) await new Promise(resolve => svc.stop(resolve));
