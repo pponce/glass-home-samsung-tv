@@ -220,4 +220,7 @@ function check(value, message) { assert(value, message); checks++; }
     if (runner) runner.kill();
     await new Promise(resolve => vetro.close(resolve));
   }
-})().catch(err => { console.error(err); process.exitCode = 1; });
+})().catch(err => {
+  if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, 'failure=' + String(err.message).replace(/[\r\n]/g,' ').slice(0,180) + '\n');
+  console.error(err); process.exitCode = 1;
+});
